@@ -3,14 +3,18 @@ import { OutboxService } from "./outbox.service";
 
 /** M27 acceptance tests (spec: guide PART II / spec/12 — atomic, idempotent, retried). */
 describe("OutboxService", () => {
-  const fakeTx = { outboxEvent: { create: vi.fn().mockResolvedValue({}) } } as never;
+  const create = vi.fn().mockResolvedValue({});
+  const fakeTx = { outboxEvent: { create } } as unknown as Parameters<
+    OutboxService["publish"]
+  >[0];
 
   it("publish writes the event inside the caller's transaction", async () => {
     const svc = new OutboxService();
-    await svc.publish(fakeTx as never, {
-      aggregateType: "order", aggregateId: "0e5d1b4a-…", eventType: "order.placed.v1", payload: { orderId: "x" },
+    await svc.publish(fakeTx, {
+      aggregateType: "order", aggregateId: "0e5d1b4a-0000-0000-0000-000000000001",
+      eventType: "order.placed.v1", payload: { orderId: "x" },
     });
-    expect(fakeTx.outboxEvent.create).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledOnce();
   });
 
   it("delivers to registered handlers and is idempotent on re-dispatch", async () => {

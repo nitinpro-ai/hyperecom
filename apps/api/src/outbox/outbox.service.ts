@@ -77,7 +77,8 @@ export class OutboxService implements OnModuleDestroy {
     }
   }
 
-  private async deliver(eventId: string, eventType: string, payload: unknown): Promise<boolean> {
+  /** Deliver to handlers. Public for testability (internal use only). */
+  async deliver(eventId: string, eventType: string, payload: unknown): Promise<boolean> {
     if (this.processed.has(eventId)) return true; // idempotent consumer
     try {
       for (const h of this.handlers.get(eventType) ?? []) {
