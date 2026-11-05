@@ -155,66 +155,49 @@ city analytics. Every action audited with before/after.
 # PART II — THE MODULES (M01–M32, complete build detail per module)
 
 > Module format: Purpose · Build info · Workflow · Tables (SQL) · APIs · Rules ·
-> Events · Screens · Acceptance. Foundation modules come first (everything
-> depends on them); business modules follow; full build order in PART III.
+> Events · Screens · Acceptance. Sections are ordered M01→M32 (index below);
+> BUILD order differs — foundation modules first — see the dependency graph at
+> the end of this part and PART III.
+## Module index — ALL 32 modules (M01–M32) in this part
 
-## M27 — Outbox (Foundation)
-**Purpose:** reliable event bus — business row + event written in ONE DB
-transaction, dispatched async so no notification/integration is ever lost.
-**Build:** Phase 0 · Step 1–2 · first module ever built. **Extract:** event-bus service (top candidate).
-**Tables:**
-```sql
-CREATE TABLE outbox_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  aggregate_type text NOT NULL, aggregate_id uuid NOT NULL,
-  event_type text NOT NULL,            -- e.g. 'order.placed.v1'
-  payload jsonb NOT NULL, status varchar(9) DEFAULT 'PENDING'
-  CHECK (status IN ('PENDING','DISPATCHED','FAILED','DEAD')),
-  attempts integer DEFAULT 0, next_attempt_at timestamptz DEFAULT now(),
-  dispatched_at timestamptz);
-CREATE INDEX outbox_pending ON outbox_events(status, next_attempt_at);
-```
-**APIs:** internal only — `OutboxPort.publish(aggregateType, aggregateId, eventType, payload)`
-(inside caller's transaction). Worker: poll 1 s, dispatch to subscriber handlers,
-backoff 1m→5m→30m→2h→6h → DEAD + alert. Consumers dedupe on `event_id`.
-**Rules:** publish is ALWAYS in the same transaction as the business write;
-payloads versioned & typed in `packages/events`.
-**Acceptance:** ① business write + event atomic (kill worker → no loss);
-② duplicate delivery ignored by consumer; ③ DEAD lands in DLQ + alert fires.
+> Sections below are ordered **M01 → M32**. Foundation modules (M26 M27 M29 M30)
+> appear at their numeric positions but are **built first** — see the dependency
+> graph at the end of this part and PART III Steps 0–18 for build order.
 
-## M26 — Audit (Foundation)
-**Purpose:** immutable record of every privileged action.
-**Build:** Phase 0 · Step 4. **Tables:**
-```sql
-CREATE TABLE audit_logs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_user_id uuid, actor_role varchar(20), action text NOT NULL,
-  entity_type text NOT NULL, entity_id uuid NOT NULL, shop_id uuid,
-  before jsonb, after jsonb, ip inet, user_agent text, reason text);
-REVOKE UPDATE, DELETE ON audit_logs FROM app_role;  -- append-only
-```
-**APIs:** `AuditPort.record(...)`; admin query `GET /admin/audit-logs?entityType&actor&after`.
-**Rules:** every privileged mutation calls record() in the same transaction;
-destructive ops require `reason`.
-**Acceptance:** privileged action without audit fails a test; UPDATE/DELETE rejected.
-
-## M30 — Idempotency (Foundation)
-**Purpose:** safe retries for all mutating POSTs.
-**Build:** Phase 0 · Step 4. **Tables:**
-```sql
-CREATE TABLE idempotency_keys (key text PRIMARY KEY, user_id uuid NOT NULL,
-  endpoint text NOT NULL, request_hash text NOT NULL,
-  response_status integer, response_body jsonb, expires_at timestamptz NOT NULL);
-```
-**APIs:** NestJS interceptor on mutating POSTs: header `Idempotency-Key` (UUID) →
-same key + same request hash → return stored response; same key + different
-request → 409. TTL 24 h.
-**Acceptance:** replayed place-order returns the original order, creates nothing new.
-
-## M29 — Feature Flags (Foundation)
-**Purpose:** kill switches + gradual rollout. **Build:** Phase 0 · Step 4.
-**Tables:** `feature_flags(key text PRIMARY KEY, description text, default_enabled bool, rules jsonb, updated_by uuid)`.
-**APIs:** `GET /flags/eval?keys=` (30 s cache, auth-optional, context = user/city/shop);
-admin CRUD. **Rules:** DB unreachable → fall back to `default_enabled`.
-**Acceptance:** flag flip visible ≤ 30 s; safe fallback proven.
+| Module | What it is | Where |
+|---|---|---|
+| M01 | Auth | own section |
+| M02 | Users, Profiles & RBAC | own section |
+| M03 | Geography & Serviceability | own section |
+| M04 | Sellers & KYC | grouped with M05, M06 |
+| M05 | Shops | grouped with M04, M06 |
+| M06 | Shop Domains | grouped with M04, M05 |
+| M07 | Catalog (categories, brands, master products, variants, matching) | own section |
+| M08 | Listings (a shop's offer) | own section |
+| M09 | Inventory (stock truth) | own section |
+| M10 | Media | own section |
+| M11 | Search & Discovery | own section |
+| M12 | Cart | own section |
+| M13 | Checkout (quote + place-order orchestration) | own section |
+| M14 | Orders (OMS + state machines) | own section |
+| M15 | Payments | own section |
+| M16 | Finance (ledger, commission, settlement) | grouped with M31 |
+| M17 | Delivery Engine | grouped with M18 |
+| M18 | Delivery Partners | grouped with M17 |
+| M19 | Returns | own section |
+| M20 | Promotions | own section |
+| M21 | Reviews | own section |
+| M22 | Notifications | own section |
+| M23 | Support & Disputes | own section |
+| M24 | Admin Ops | grouped with M25, M28, M32 |
+| M25 | Analytics | grouped with M24, M28, M32 |
+| M26 | Audit (Foundation) | own section |
+| M27 | Outbox (Foundation) | own section |
+| M28 | Webhooks | grouped with M24, M25, M32 |
+| M29 | Feature Flags (Foundation) | own section |
+| M30 | Idempotency (Foundation) | own section |
+| M31 | Invoicing (GST) | grouped with M16 |
+| M32 | Content (CMS) | grouped with M24, M25, M28 |
 
 ## M01 — Auth
 **Purpose:** OTP login (customers + sellers + riders), optional password, JWT sessions.
@@ -361,28 +344,6 @@ CREATE TABLE shop_settings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 **Screens:** onboarding wizard; admin KYC queue. **Extract:** tenant-registry.
 **Accept:** slug race 1-winner; cascade complete; docs private; cache invalidation on rename.
 
-## M10 — Media
-**Purpose:** signed uploads, image derivatives, scanning, per-shop quota.
-**Build:** Phase 1 · Step 6. **Extract:** asset-pipeline service.
-**Table:**
-```sql
-CREATE TABLE media (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  owner_user_id uuid NOT NULL REFERENCES users, shop_id uuid,
-  kind varchar(14) NOT NULL CHECK (kind IN
-  ('PRODUCT_IMAGE','LOGO','BANNER','POD','DOCUMENT','RETURN_PHOTO')),
-  storage_key text NOT NULL, mime varchar(30) NOT NULL, width integer, height integer,
-  size_bytes integer NOT NULL, variants jsonb,
-  scan_status varchar(9) DEFAULT 'PENDING' CHECK (scan_status IN ('PENDING','CLEAN','REJECTED')));
-```
-**APIs:** `POST /media/upload-url {kind, mime, sizeBytes}` → `{uploadUrl, mediaId}`
-(S3 presigned, 10-min TTL) → client PUTs → `POST /media/{id}/complete` → queue
-process → `GET /media/{id}`. KYC/doc kinds go to the private bucket.
-**Rules:** allowlist jpeg/png/webp; content-sniffing (MIME spoof rejected); ≤6
-product images per listing, ≤5 MB; derivatives 256/512/1024 WebP via sharp
-(<10 s); EXIF stripped; virus scan before `CLEAN`; quota per shop (default 2 GB).
-**Events out:** `media.processed.v1`.
-**Screens:** wizard step 1; PoD capture; KYC uploads.
-**Accept:** spoof rejected; derivatives generated; private URLs expire; quota enforced.
 ## M07 — Catalog (categories, brands, master products, variants, matching)
 **Purpose:** the shared product master so the same product can be offered by many
 shops and compared like-for-like. **Build:** Phase 2 · Step 5–7. **Extract:** catalogue service.
@@ -505,6 +466,28 @@ reservation CONSUME on DISPATCH, RELEASE on cancel/reject/timeout (TTL 30 min vi
 **Accept:** 100 parallel reservations on stock=10 → exactly 10 succeed; TTL
 release restores availability; reconciliation zero-drift; RLS isolation passes.
 
+## M10 — Media
+**Purpose:** signed uploads, image derivatives, scanning, per-shop quota.
+**Build:** Phase 1 · Step 6. **Extract:** asset-pipeline service.
+**Table:**
+```sql
+CREATE TABLE media (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id uuid NOT NULL REFERENCES users, shop_id uuid,
+  kind varchar(14) NOT NULL CHECK (kind IN
+  ('PRODUCT_IMAGE','LOGO','BANNER','POD','DOCUMENT','RETURN_PHOTO')),
+  storage_key text NOT NULL, mime varchar(30) NOT NULL, width integer, height integer,
+  size_bytes integer NOT NULL, variants jsonb,
+  scan_status varchar(9) DEFAULT 'PENDING' CHECK (scan_status IN ('PENDING','CLEAN','REJECTED')));
+```
+**APIs:** `POST /media/upload-url {kind, mime, sizeBytes}` → `{uploadUrl, mediaId}`
+(S3 presigned, 10-min TTL) → client PUTs → `POST /media/{id}/complete` → queue
+process → `GET /media/{id}`. KYC/doc kinds go to the private bucket.
+**Rules:** allowlist jpeg/png/webp; content-sniffing (MIME spoof rejected); ≤6
+product images per listing, ≤5 MB; derivatives 256/512/1024 WebP via sharp
+(<10 s); EXIF stripped; virus scan before `CLEAN`; quota per shop (default 2 GB).
+**Events out:** `media.processed.v1`.
+**Screens:** wizard step 1; PoD capture; KYC uploads.
+**Accept:** spoof rejected; derivatives generated; private URLs expire; quota enforced.
 ## M11 — Search & Discovery
 **Purpose:** city-scoped search with filters/sorts/suggestions. **Build:** Phase 3 · Step 10.
 **Impl v1:** Postgres FTS + `pg_trgm` typo tolerance + PostGIS distance sort over
@@ -538,23 +521,6 @@ CREATE TABLE cart_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 **Rules:** ≤50 items, ≤10 shops; anonymous cookie-cart merges at login; quantity
 capped at availability. **Accept:** anon merge; drift detection; caps enforced.
 
-## M20 — Promotions
-**Purpose:** coupons platform/city/shop scoped. **Build:** Phase 3; campaigns Phase 7.
-```sql
-CREATE TABLE coupons (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  scope varchar(8) NOT NULL CHECK (scope IN ('PLATFORM','CITY','SHOP')),
-  city_id uuid REFERENCES cities, shop_id uuid REFERENCES shops, code text NOT NULL,
-  type varchar(13) NOT NULL CHECK (type IN ('PERCENT','FLAT','FREE_DELIVERY')),
-  value_bp integer, value_paise bigint, min_order_paise bigint DEFAULT 0,
-  max_discount_paise bigint, usage_limit integer, per_user_limit integer DEFAULT 1,
-  valid_from timestamptz, valid_to timestamptz, is_active bool DEFAULT true);
-CREATE TABLE coupon_redemptions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  coupon_id uuid NOT NULL REFERENCES coupons, user_id uuid NOT NULL,
-  order_id uuid NOT NULL, discount_paise bigint NOT NULL);
-```
-**Rules:** validation stack scope→window→min-order→limits; no stacking;
-FREE_DELIVERY applies to one shop group; discount capped at item level.
-**Accept:** scope/limit tests; no stacking.
 ## M13 — Checkout (quote + place-order orchestration)
 **Purpose:** compute quote; place order as ONE transaction across modules.
 **Build:** Phase 3 · Step 11. **Prereq:** M03, M09, M12, M14, M15, M20.
@@ -801,6 +767,23 @@ admin resolves. Restock via `stock_movements(RETURN)`.
 **Accept:** window expiry blocks; auto-approve gate; frozen refund on dispute;
 restock recorded.
 
+## M20 — Promotions
+**Purpose:** coupons platform/city/shop scoped. **Build:** Phase 3; campaigns Phase 7.
+```sql
+CREATE TABLE coupons (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope varchar(8) NOT NULL CHECK (scope IN ('PLATFORM','CITY','SHOP')),
+  city_id uuid REFERENCES cities, shop_id uuid REFERENCES shops, code text NOT NULL,
+  type varchar(13) NOT NULL CHECK (type IN ('PERCENT','FLAT','FREE_DELIVERY')),
+  value_bp integer, value_paise bigint, min_order_paise bigint DEFAULT 0,
+  max_discount_paise bigint, usage_limit integer, per_user_limit integer DEFAULT 1,
+  valid_from timestamptz, valid_to timestamptz, is_active bool DEFAULT true);
+CREATE TABLE coupon_redemptions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  coupon_id uuid NOT NULL REFERENCES coupons, user_id uuid NOT NULL,
+  order_id uuid NOT NULL, discount_paise bigint NOT NULL);
+```
+**Rules:** validation stack scope→window→min-order→limits; no stacking;
+FREE_DELIVERY applies to one shop group; discount capped at item level.
+**Accept:** scope/limit tests; no stacking.
 ## M21 — Reviews
 **Purpose:** verified-purchase reviews + exact aggregates. **Build:** Phase 4.
 ```sql
@@ -894,6 +877,64 @@ centre — `pages/banners/faqs` tables + admin CRUD + public read APIs.
 **Accept (all):** admin actions audited; seller dashboard isolation; rollups
 correct; outbound retries work; CMS pages render on city site.
 ---
+
+## M26 — Audit (Foundation)
+**Purpose:** immutable record of every privileged action.
+**Build:** Phase 0 · Step 4. **Tables:**
+```sql
+CREATE TABLE audit_logs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_user_id uuid, actor_role varchar(20), action text NOT NULL,
+  entity_type text NOT NULL, entity_id uuid NOT NULL, shop_id uuid,
+  before jsonb, after jsonb, ip inet, user_agent text, reason text);
+REVOKE UPDATE, DELETE ON audit_logs FROM app_role;  -- append-only
+```
+**APIs:** `AuditPort.record(...)`; admin query `GET /admin/audit-logs?entityType&actor&after`.
+**Rules:** every privileged mutation calls record() in the same transaction;
+destructive ops require `reason`.
+**Acceptance:** privileged action without audit fails a test; UPDATE/DELETE rejected.
+
+## M27 — Outbox (Foundation)
+**Purpose:** reliable event bus — business row + event written in ONE DB
+transaction, dispatched async so no notification/integration is ever lost.
+**Build:** Phase 0 · Step 1–2 · first module ever built. **Extract:** event-bus service (top candidate).
+**Tables:**
+```sql
+CREATE TABLE outbox_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  aggregate_type text NOT NULL, aggregate_id uuid NOT NULL,
+  event_type text NOT NULL,            -- e.g. 'order.placed.v1'
+  payload jsonb NOT NULL, status varchar(9) DEFAULT 'PENDING'
+  CHECK (status IN ('PENDING','DISPATCHED','FAILED','DEAD')),
+  attempts integer DEFAULT 0, next_attempt_at timestamptz DEFAULT now(),
+  dispatched_at timestamptz);
+CREATE INDEX outbox_pending ON outbox_events(status, next_attempt_at);
+```
+**APIs:** internal only — `OutboxPort.publish(aggregateType, aggregateId, eventType, payload)`
+(inside caller's transaction). Worker: poll 1 s, dispatch to subscriber handlers,
+backoff 1m→5m→30m→2h→6h → DEAD + alert. Consumers dedupe on `event_id`.
+**Rules:** publish is ALWAYS in the same transaction as the business write;
+payloads versioned & typed in `packages/events`.
+**Acceptance:** ① business write + event atomic (kill worker → no loss);
+② duplicate delivery ignored by consumer; ③ DEAD lands in DLQ + alert fires.
+
+## M29 — Feature Flags (Foundation)
+**Purpose:** kill switches + gradual rollout. **Build:** Phase 0 · Step 4.
+**Tables:** `feature_flags(key text PRIMARY KEY, description text, default_enabled bool, rules jsonb, updated_by uuid)`.
+**APIs:** `GET /flags/eval?keys=` (30 s cache, auth-optional, context = user/city/shop);
+admin CRUD. **Rules:** DB unreachable → fall back to `default_enabled`.
+**Acceptance:** flag flip visible ≤ 30 s; safe fallback proven.
+
+## M30 — Idempotency (Foundation)
+**Purpose:** safe retries for all mutating POSTs.
+**Build:** Phase 0 · Step 4. **Tables:**
+```sql
+CREATE TABLE idempotency_keys (key text PRIMARY KEY, user_id uuid NOT NULL,
+  endpoint text NOT NULL, request_hash text NOT NULL,
+  response_status integer, response_body jsonb, expires_at timestamptz NOT NULL);
+```
+**APIs:** NestJS interceptor on mutating POSTs: header `Idempotency-Key` (UUID) →
+same key + same request hash → return stored response; same key + different
+request → 409. TTL 24 h.
+**Acceptance:** replayed place-order returns the original order, creates nothing new.
 
 # PART III — MASTER BUILD SEQUENCE
 
