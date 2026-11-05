@@ -47,15 +47,40 @@ All app env vars (see `.env.example`) are injected via a Kubernetes `Secret`
 (`apnacity-env`) + `ConfigMap` (`apnacity-config`) — never baked into images.
 Create with: `kubectl -n apnacity create secret generic apnacity-env --from-env-file=.env`
 
-## Open items — needed from the owner when the server is shared
+## Open items — status (assessed 2026-11-05 against the homelab cluster)
 
-1. **Cluster type/access:** kubeconfig or SSH + is it k3s / managed (EKS/GKE/AKS) / other?
-2. **Container registry:** GHCR (GitHub) or private registry on the server?
-3. **Postgres + Redis:** run in-cluster (StatefulSets + PVC, needs a StorageClass)
-   or managed/external? PostGIS image required either way.
-4. **Ingress controller + cert-manager:** already installed? Cluster-issuer email?
-5. **Node capacity:** CPU/RAM of the server (sizing for requests/limits + HPA).
-6. **Migrations strategy:** confirmed `prisma migrate deploy` as a pre-deploy Job.
+1. **Cluster type/access:** ✅ MicroK8s 1.31 single node (`ubuntu-test`, 192.168.2.224,
+   16 CPU / ~63 GB RAM / ~97 GB disk; kubeconfig at `~/work/homelab/kubeconfig/ubuntu-test.yaml`).
+   Other projects (astrology/simlab/xlienlabs) run in separate namespaces — untouched.
+2. **Container registry:** ✅ **GHCR** (no local registry needed; CI pushes, kubelet pulls
+   via imagePullSecret).
+3. **Postgres + Redis:** ✅ in-cluster for dev — `postgis/postgis:16-3.4` StatefulSet +
+   PVC on `microk8s-hostpath` (default StorageClass, proven by other projects);
+   nightly `pg_dump` job mandatory (single node, no HA).
+4. **Ingress controller + cert-manager:** ⚠️ none installed. **Recommended for dev:
+   Cloudflare Tunnel** (pattern already running in this cluster — `*-tunnel` pods;
+   TLS terminates at Cloudflare edge, no LAN exposure, no cert-manager needed).
+   Alternative: `microk8s enable ingress` + cert-manager later.
+5. **Node capacity:** ✅ ~4 % CPU / ~7 % RAM currently used — the full ApnaCity dev
+   stack (~4–5 CPU, ~8–10 GB, ~10 pods incl. Postgres/Redis/MinIO) fits comfortably.
+6. **Migrations strategy:** ✅ `prisma migrate deploy` as a pre-deploy Job.
+
+## Setup commands still to run (on the VM, then we deploy)
+
+```bash
+# SSH to 192.168.2.224 (credentials in ~/work/homelab/cred.MD — never commit/echo)
+sudo microk8s enable metrics-server   # required for the HPA in apps/api.yaml
+sudo microk8s enable ingress          # optional if using Cloudflare Tunnel only
+```
+
+Exposure for dev: create a Cloudflare Tunnel (owner's CF account, `rudicooli.com`
+pattern) routing e.g. `apnacity-dev.rudicooli.com` → `web.apnacity.svc.cluster.local:80`
+and `apnacity-api-dev.rudicooli.com` → `api.apnacity.svc.cluster.local:80`.
+`*.apnacity.com` wildcard DNS/TLS applies later for production (D-009).
+
+> Note: SAP VPN blocks 192.168.2.x — deploy from the Mac only with VPN off,
+> or let GitHub Actions deploy (runner is outside the LAN).
+
 
 ## Local development is unchanged
 
