@@ -1,0 +1,45 @@
+# ── Secrets & local-only ─────────────────────────────
+gitrepo/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── Node / TypeScript ────────────────────────────────
+node_modules/
+dist/
+build/
+out/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# ── Next.js / Turborepo ──────────────────────────────
+.next/
+.turbo/
+.vercel/
+
+# ── Expo / React Native ──────────────────────────────
+.expo/
+ios/Pods/
+ios/build/
+android/build/
+android/.gradle/
+
+# ── NestJS ───────────────────────────────────────────
+apps/api/dist/
+
+# ── Databases / infra ────────────────────────────────
+*.sqlite
+*.db
+pgdata/
+minio-data/
+
+# ── Editors / OS ─────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
