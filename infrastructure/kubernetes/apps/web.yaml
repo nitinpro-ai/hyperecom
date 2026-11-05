@@ -1,0 +1,42 @@
+# ApnaCity web (marketplace + city + shop storefronts) — one Deployment serves
+# all public hosts; tenant resolution happens in-app (Step 4 middleware).
+# seller-portal / admin-portal: copy this file, swap name/image/port.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: apnacity
+  labels: { app: web, app.kubernetes.io/part-of: apnacity }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata:
+      labels: { app: web }
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/nitinpro-ai/hyperecom-web:latest # pinned by CI on deploy
+          ports: [{ containerPort: 3000 }]
+          envFrom:
+            - configMapRef: { name: apnacity-config }
+          readinessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 150m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: apnacity
+spec:
+  selector: { app: web }
+  ports: [{ port: 80, targetPort: 3000 }]

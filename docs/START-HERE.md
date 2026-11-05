@@ -23,6 +23,8 @@
 | GitHub token rotation | ⚠️ **PENDING** — token `ghp_ZlpU…` was shared in plaintext; revoke + create new (SSH recommended) |
 | Local toolchain | ✅ Node 26 · ✅ pnpm 12.16.1 (installed via `npm i -g pnpm`) · ❌ **Docker Desktop NOT installed** (needed for `docker compose up -d` in Step 2 — install from docker.com) |
 | **Code — Step 1 scaffold** | ✅ **DONE** — monorepo builds green: typecheck 18/18, build 11/11, tests pass, `GET /v1/health` returns ok (NestJS API + 3 Next.js apps + 7 packages + docker-compose + CI workflow + DEVELOPMENT.md) |
+| **Deployment target (D-016)** | ✅ **Kubernetes** — production Dockerfiles for all 4 apps (`apps/*/Dockerfile`, standalone Next output) + manifests in `infrastructure/kubernetes/` (namespace, api/web deployments+HPA, ingress with cert-manager wildcard TLS) |
+| **Build/test server** | ⏳ **WAITING ON OWNER** — when shared, provide: ① kubeconfig/SSH + cluster type (k3s? managed?) ② registry choice (GHCR?) ③ Postgres/Redis in-cluster vs managed (PostGIS required) ④ ingress+cert-manager installed? ⑤ server CPU/RAM. Open items tracked in `infrastructure/kubernetes/README.md` |
 | **Code — next step** | ▶️ **Step 2 — Database foundation**: geography + identity/tenancy tables, postgis/pg_trgm/ltree extensions, RLS policies, India geo seed (guide PART II M03 tables + spec/03 §2–3) |
 
 > **How "memory" works:** chat history is not carried between sessions. This

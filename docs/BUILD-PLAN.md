@@ -68,6 +68,7 @@ Six user experiences, one backend:
 | D-013 | Finance | Double-entry immutable ledger |
 | D-014 | Inventory | Atomic conditional updates + TTL reservations; Redis is cache only |
 | D-015 | Module packaging | Self-contained modules, ports+events only, microservice-extractable (`02` §10, `12`) |
+| D-016 | Deployment | **Kubernetes** — build/test server to be shared; images from app Dockerfiles; `infrastructure/kubernetes/`; local dev stays Docker Compose |
 
 ---
 

@@ -71,6 +71,7 @@ Related: [`../adr/000-template.md`](../adr/000-template.md) — architecture dec
 | D-013 | Finance | **LOCKED** | Double-entry immutable ledger; never derive balances from order status |
 | D-014 | Inventory | **LOCKED** | Atomic conditional stock + reservations with TTL; Redis never authoritative |
 | D-015 | Module packaging | **LOCKED** | Every module is self-contained + microservice-extractable via ports/events (see `02` §10, `12`) |
+| D-016 | Deployment target | **LOCKED** | **Kubernetes** (dedicated build/test server to be provided by owner). Local dev stays Docker Compose; images via app Dockerfiles; manifests in `infrastructure/kubernetes/` |
 
 > Items marked *assumed* were unresolved in the legacy docs. They are recorded here as
 > defaults so development is not blocked. Change them only via an update to this table

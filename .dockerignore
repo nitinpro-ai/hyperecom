@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+.git
+.github
+docs
+*.md
+.env
+.env.*
+!.env.example
+gitrepo
+.DS_Store
+coverage
+pgdata
+minio-data

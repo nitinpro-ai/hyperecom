@@ -1032,21 +1032,29 @@ one contract for all six UIs) · `validation` (Zod: listing, checkout, address�
 | Load | k6 (Phase 7) | 200 rps browse / 50 rps search / 20 orders/min × 30 min |
 | Security | pen test (Phase 7) | auth, IDOR on all /seller/* & /admin/*, webhook sigs, uploads |
 
-## V2. CI/CD (GitHub Actions)
+## V2. CI/CD (GitHub Actions → Kubernetes, D-016)
 
 PR: lint → typecheck → unit → integration (compose db/redis/minio) →
 api-client regen check → tenant-isolation suite.
-`main`: build images → migrate staging → deploy (blue/green) → smoke
-(`/health`, storefront 200, tenant resolve) → Playwright e2e.
-Tag `v*`: manual approval → migrate prod (forward-compatible only) → deploy →
-smoke → notify. Mobile: EAS build on tag → staged rollout 10→50→100 % with
-crash-rate gate. Migrations: `migrate deploy` pre-step; destructive changes =
-add → backfill → switch → drop (two releases).
+`main`: build app images (apps/*/Dockerfile, repo-root context) → push to
+container registry (GHCR) → deploy to **staging namespace on the k8s
+build/test server** (`kubectl apply` with pinned image digests; migration
+Job runs `prisma migrate deploy` before rollout) → smoke (`/v1/health`,
+storefront 200, tenant resolve) → Playwright e2e.
+Tag `v*`: manual approval → migrate-prod Job → deploy production namespace →
+smoke → notify. Rollback: redeploy previous image digest (migrations always
+forward-compatible for one release). Mobile: EAS build on tag → staged rollout
+10→50→100 % with crash-rate gate.
 
 ## V3. Environments & configuration
 
 local (Docker Compose: `postgis/postgis:16-3.4`, `redis:7`, `minio`, `mailpit`) ·
-staging (auto on main, anonymised weekly snapshot) · production (tag + approval).
+**staging = `staging` namespace on the Kubernetes build/test server (D-016;
+deploy on main, anonymised data, full e2e)** · production = `apnacity` namespace
+(tag + approval). In-cluster Postgres+Redis on the server initially (PostGIS
+image + PVC); managed DB when scale demands. Env injected via k8s
+Secret (`apnacity-env`) / ConfigMap — never baked into images; TLS via
+cert-manager wildcard (D-009).
 `.env.example` keys: `DATABASE_URL DB_POOL_MAX REDIS_URL S3_ENDPOINT S3_REGION
 S3_BUCKET_PUBLIC S3_BUCKET_PRIVATE S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY CDN_BASE_URL
 JWT_ACCESS_SECRET JWT_ACCESS_TTL REFRESH_SECRET OTP_HASH_PEPPER
