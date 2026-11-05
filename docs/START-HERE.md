@@ -4,7 +4,7 @@
 > Read only this file first. It tells you exactly what to do today, this week,
 > and in what order to build everything else.
 >
-> Last updated: 2026-11-05 · Status: **planning complete, code not started**
+> Last updated: 2026-11-05 (post-repo-setup) · Status: **planning complete, repo live, code not started**
 
 ---
 
@@ -12,16 +12,21 @@
 
 | Item | Status |
 |------|--------|
-| Business concept | ✅ done (`legacy/concept.MD` — legacy input) |
+| Business concept | ✅ done (`legacy/concept.MD` — superseded input) |
 | Complete build specification | ✅ done (`COMPLETE-BUILD-GUIDE.md` — **the master document**) |
 | Detailed reference specs | ✅ done (`spec/00–12` in this folder) |
-| Business decisions | ⚠️ 6 defaults assumed — need your confirmation (§4 below) |
+| **Git repository** | ✅ live → **https://github.com/nitinpro-ai/hyperecom** (branch `main`) |
+| **Development clone (USE THIS)** | ✅ `/Users/D073341/work/hyperecom` — all future work happens here |
+| Old planning folder | `/Users/D073341/work/cline/apnacity-hyperlocal-ecom` — retired; holds local-only `gitrepo/info.md` (token) |
+| Business decisions | ⚠️ 6 defaults assumed — need confirmation (§4 below) |
 | External registrations (DLT, gateway, entity) | ❌ not started — **longest lead time, start today** |
-| **Code** | ❌ **not started — starts at Step 1 in §3 below** |
+| GitHub token rotation | ⚠️ **PENDING** — token `ghp_ZlpU…` was shared in plaintext; revoke + create new (SSH recommended) |
+| **Code** | ❌ **not started — starts at Step 0/1 in §3 below** |
 
-> **How "memory" works:** I don't carry chat history between sessions. This
+> **How "memory" works:** chat history is not carried between sessions. This
 > file is the handoff — keep it updated as work progresses (mark steps done,
-> note decisions) and any future session picks up exactly where you left off.
+> note decisions, record commit IDs) and any future session picks up exactly
+> where you left off. **Rule: every session ends by updating this section + committing.**
 
 ## 2. The one document you need
 
