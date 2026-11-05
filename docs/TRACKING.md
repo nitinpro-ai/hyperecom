@@ -31,7 +31,8 @@
 | 1 | Monorepo scaffold | ✅ DONE (8aa726d) | typecheck 18/18 · build 11/11 · tests pass · /v1/health ok |
 | — | K8s prep (D-016) | ✅ DONE (b4532c2) | Dockerfiles ×4, manifests, ingress/HPA design |
 | — | Cluster setup + deploy | ✅ **DONE & VERIFIED (2026-11-05)** | namespace `apnacity`: postgres+postgis ✅ · redis ✅ · api ×2 health OK (`:30400/v1/health`) · web/seller/admin 200 (`:30280/81/82`) · PostGIS+pg_trgm enabled · images in local registry; **MinIO deferred** (Docker Hub rate-limit; needed at Step 5). Full state + gotchas: `infrastructure/CLUSTER.md` |
-| **M27** | **Outbox module (first module)** | ✅ **DONE (b47c9a9)** | table live on cluster DB (migration `20261105162201_add_outbox`) · publish-in-transaction + idempotent consumer + retry/backoff (1m→6h) → DEAD · typecheck 18/18 · tests 3/3 |
+| **M26** | **Audit module** | ✅ **DONE (b4353bf)** — append-only enforced by DB trigger (UPDATE/DELETE blocked, live-verified) · destructive ops require reason · keyset query · tests 6/6 |
+| **M27** | **Outbox module** | ✅ **DONE (b47c9a9)** | table live on cluster DB (migration `20261105162201_add_outbox`) · publish-in-transaction + idempotent consumer + retry/backoff (1m→6h) → DEAD · typecheck 18/18 · tests 3/3 |
 | — | Wireframes | ✅ DONE | `docs/WIREFRAMES.md` — 12 screens (home, search, PDP offers table, storefront, cart/checkout, tracking, seller inbox/wizard, rider, admin, city landing, mobile) |
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ▶️ **NEXT** | run migrations from Mac via `DATABASE_URL=…30432` (command in CLUSTER.md) |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |

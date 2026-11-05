@@ -64,9 +64,6 @@ export class AuditService {
   /** Keyset query (admin console lands with M24 RBAC). */
   async query(q: AuditQuery) {
     const limit = Math.min(q.limit ?? 50, 200);
-    const cursor = q.after
-      ? { cursor: { id: q.after }, skip: 1 }
-      : {};
     return prisma.auditLog.findMany({
       where: {
         entityType: q.entityType,
@@ -76,7 +73,7 @@ export class AuditService {
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
-      ...cursor,
+      ...(q.after ? { cursor: { id: q.after } as const, skip: 1 } : {}),
     });
   }
 }
