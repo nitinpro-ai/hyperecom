@@ -1,4 +1,5 @@
-# ApnaCity API — Deployment + Service + HPA (scaffold; finalized with cluster details)
+# ApnaCity API — Deployment + Service + HPA + LAN NodePort.
+# Dev images from the in-cluster registry (microk8s `registry` addon, :32000).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,11 +15,10 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/nitinpro-ai/hyperecom-api:latest # pinned by CI on deploy
+          image: localhost:32000/hyperecom-api:latest
           ports: [{ containerPort: 4000 }]
           envFrom:
-            - secretRef: { name: apnacity-env }     # all .env.example vars
-            - configMapRef: { name: apnacity-config }
+            - secretRef: { name: apnacity-env }
           readinessProbe:
             httpGet: { path: /v1/health, port: 4000 }
             initialDelaySeconds: 5
@@ -40,6 +40,17 @@ spec:
   selector: { app: api }
   ports: [{ port: 80, targetPort: 4000 }]
 ---
+# LAN access: http://192.168.2.224:30400/v1/health
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-external
+  namespace: apnacity
+spec:
+  type: NodePort
+  selector: { app: api }
+  ports: [{ port: 80, targetPort: 4000, nodePort: 30400 }]
+---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -48,7 +59,8 @@ metadata:
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
   minReplicas: 2
-  maxReplicas: 6
+  maxReplicas: 4
   metrics:
     - type: Resource
       resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+

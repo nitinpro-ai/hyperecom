@@ -1,0 +1,64 @@
+# Postgres 16 + PostGIS — ApnaCity dev database (in-cluster, single node).
+# PVC 20Gi on microk8s-hostpath. External access for local dev tools
+# (prisma migrate from the Mac): 192.168.2.224:30432
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: apnacity
+  labels: { app: postgres, app.kubernetes.io/part-of: apnacity }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: postgis/postgis:16-3.4
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_USER, value: apnacity }
+            - { name: POSTGRES_PASSWORD, value: apnacity } # DEV ONLY — rotate for anything beyond dev
+            - { name: POSTGRES_DB, value: apnacity }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "apnacity", "-d", "apnacity"] }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "apnacity", "-d", "apnacity"] }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 4Gi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 20Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: apnacity
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+# NodePort for dev tools on the LAN (prisma/studio from the Mac)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: apnacity
+spec:
+  type: NodePort
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432, nodePort: 30432 }]

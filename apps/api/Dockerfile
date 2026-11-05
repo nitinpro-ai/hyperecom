@@ -3,19 +3,18 @@
 FROM node:22-alpine AS builder
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/api ./apps/api
-RUN pnpm install --frozen-lockfile --filter @apnacity/api...
+RUN pnpm install --frozen-lockfile --filter @apnacity/api... --ignore-scripts
 RUN pnpm --filter @apnacity/db generate
 RUN pnpm --filter @apnacity/api build
-# Prune to production dependencies only (api + its workspace deps)
-RUN pnpm --filter @apnacity/api deploy --prod /out
-
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=builder /out ./
+# Dev-grade image: copy the whole built workspace (pnpm symlink layout preserved).
+# CI hardening (Step 3) may revisit pruning; dev cluster correctness > image size.
+COPY --from=builder /app ./
 EXPOSE 4000
 # Env comes from Kubernetes Secret/ConfigMap (never baked into images).
-CMD ["node", "dist/main.js"]
+CMD ["node", "apps/api/dist/main.js"]

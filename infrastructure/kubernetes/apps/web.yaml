@@ -1,6 +1,4 @@
-# ApnaCity web (marketplace + city + shop storefronts) — one Deployment serves
-# all public hosts; tenant resolution happens in-app (Step 4 middleware).
-# seller-portal / admin-portal: copy this file, swap name/image/port.
+# ApnaCity web (marketplace + city + shop storefronts) — LAN NodePort 30080.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,10 +14,8 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/nitinpro-ai/hyperecom-web:latest # pinned by CI on deploy
+          image: localhost:32000/hyperecom-web:latest
           ports: [{ containerPort: 3000 }]
-          envFrom:
-            - configMapRef: { name: apnacity-config }
           readinessProbe:
             httpGet: { path: /, port: 3000 }
             initialDelaySeconds: 5
@@ -40,3 +36,15 @@ metadata:
 spec:
   selector: { app: web }
   ports: [{ port: 80, targetPort: 3000 }]
+---
+# LAN access: http://192.168.2.224:30280
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-external
+  namespace: apnacity
+spec:
+  type: NodePort
+  selector: { app: web }
+  ports: [{ port: 80, targetPort: 3000, nodePort: 30280 }]
+

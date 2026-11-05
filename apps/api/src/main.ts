@@ -25,9 +25,11 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("v1");
   app.enableShutdownHooks();
 
-  const port = Number.parseInt(new URL(env.API_BASE_URL).port || "4000", 10);
-  await app.listen(port);
-  console.log(`🚀 ApnaCity API ready on ${env.API_BASE_URL} (env: ${env.NODE_ENV})`);
+  // Container port: PORT env (k8s sets 4000), default 4000. API_BASE_URL is the
+  // EXTERNAL address (NodePort/ingress) and must NOT drive the listen port.
+  const port = Number.parseInt(process.env.PORT ?? "4000", 10);
+  await app.listen(port, "0.0.0.0");
+  console.log(`🚀 ApnaCity API listening on :${port} (env: ${env.NODE_ENV}, external: ${env.API_BASE_URL})`);
 }
 
 void bootstrap();

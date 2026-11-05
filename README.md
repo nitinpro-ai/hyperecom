@@ -6,8 +6,10 @@
 > product uploaded once appears on the shop site, the marketplace, city search
 > and the mobile apps.
 
-**Status:** 📋 Planning complete · 💻 Development not started yet —
-**👉 [docs/START-HERE.md](docs/START-HERE.md) tells you exactly where to begin.**
+**Status:** 📋 Planning complete · 💻 **Step 1 + dev cluster DONE — Step 2 (database) next** ·
+**👉 [docs/START-HERE.md](docs/START-HERE.md)** (entry point) ·
+**[docs/TRACKING.md](docs/TRACKING.md)** (progress tracker) ·
+**[infrastructure/CLUSTER.md](infrastructure/CLUSTER.md)** (dev cluster on Kubernetes).
 
 ## Repository layout
 

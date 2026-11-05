@@ -3,10 +3,10 @@
 FROM node:22-alpine AS builder
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/admin-portal ./apps/admin-portal
-RUN pnpm install --frozen-lockfile --filter @apnacity/admin-portal...
+RUN pnpm install --frozen-lockfile --filter @apnacity/admin-portal... --ignore-scripts
 RUN pnpm --filter @apnacity/admin-portal build
 
 FROM node:22-alpine AS runner
