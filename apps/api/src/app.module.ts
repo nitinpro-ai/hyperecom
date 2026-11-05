@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
 import { HealthModule } from "./health/health.module";
+import { OutboxModule } from "./outbox/outbox.module";
 
 /**
- * Root module. Step 4 adds: ConfigModule(global), PrismaModule, AuthModule,
- * UsersModule, TenantGuard — see COMPLETE-BUILD-GUIDE PART II (M01, M02, M27…).
+ * Root module. Step 4 adds: PrismaModule, AuthModule, UsersModule, TenantGuard.
  * One module per folder; cross-module access only via ports/events (D-015).
  */
 @Module({
-  imports: [HealthModule],
+  imports: [HealthModule, OutboxModule],
 })
 export class AppModule {}
+

@@ -12,12 +12,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ── Step 2 will add: countries, states, cities, localities, pincodes,        ──
-// ── delivery_zones, users, roles, sellers, shops, shop_domains, shop_settings ──
-// ── (see COMPLETE-BUILD-GUIDE PART II, modules M01–M06 tables).              ──
-//
-// This initial model exists so `prisma migrate dev` has a baseline and the
-// Step 1 verify gate (`db:generate`) passes.
+// M27 — outbox events (reliable async module communication, D-015)
+model OutboxEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  aggregateType  String   @map("aggregate_type")
+  aggregateId    String   @map("aggregate_id") @db.Uuid
+  eventType      String   @map("event_type") // e.g. "order.placed.v1"
+  payload        Json
+  status         String   @default("PENDING") // PENDING|DISPATCHED|FAILED|DEAD
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  dispatchedAt   DateTime? @map("dispatched_at") @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@map("outbox_events")
+}
+
 
 model SystemCheck {
   id        String   @id @default(uuid()) @db.Uuid
