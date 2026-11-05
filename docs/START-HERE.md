@@ -21,7 +21,9 @@
 | Business decisions | ⚠️ 6 defaults assumed — need confirmation (§4 below) |
 | External registrations (DLT, gateway, entity) | ❌ not started — **longest lead time, start today** |
 | GitHub token rotation | ⚠️ **PENDING** — token `ghp_ZlpU…` was shared in plaintext; revoke + create new (SSH recommended) |
-| **Code** | ❌ **not started — starts at Step 0/1 in §3 below** |
+| Local toolchain | ✅ Node 26 · ✅ pnpm 12.16.1 (installed via `npm i -g pnpm`) · ❌ **Docker Desktop NOT installed** (needed for `docker compose up -d` in Step 2 — install from docker.com) |
+| **Code — Step 1 scaffold** | ✅ **DONE** — monorepo builds green: typecheck 18/18, build 11/11, tests pass, `GET /v1/health` returns ok (NestJS API + 3 Next.js apps + 7 packages + docker-compose + CI workflow + DEVELOPMENT.md) |
+| **Code — next step** | ▶️ **Step 2 — Database foundation**: geography + identity/tenancy tables, postgis/pg_trgm/ltree extensions, RLS policies, India geo seed (guide PART II M03 tables + spec/03 §2–3) |
 
 > **How "memory" works:** chat history is not carried between sessions. This
 > file is the handoff — keep it updated as work progresses (mark steps done,
@@ -62,9 +64,9 @@ Give your AI coding agent this prompt:
 
 ### THEN — follow the sequence, one step at a time
 ```
-Step 0  prerequisites (business)          ← TODAY
-Step 1  scaffold monorepo                 ← first coding day
-Step 2  database + geography seed
+Step 0  prerequisites (business)          ← TODAY (DLT/gateway/entity — parallel, blocks Step 5+)
+Step 1  scaffold monorepo                 ← ✅ DONE (typecheck/build/tests/health all green)
+Step 2  database + geography seed         ← ▶️ NEXT (needs Docker Desktop installed first)
 Step 3  CI pipeline
 Step 4  auth + RBAC + tenancy  (modules M27 M26 M30 M29 M01 M02)
 Step 5  seller onboarding + shop + domains (M04 M05 M06)

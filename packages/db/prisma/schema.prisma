@@ -1,0 +1,30 @@
+// ApnaCity database schema (packages/db/prisma/schema.prisma)
+// Source of truth: docs/spec/03-data-model.md + COMPLETE-BUILD-GUIDE PART II.
+// Extensions (postgis, pg_trgm, ltree) and RLS policies are applied via raw
+// SQL migrations in ./migrations — Prisma manages tables, SQL manages extensions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Step 2 will add: countries, states, cities, localities, pincodes,        ──
+// ── delivery_zones, users, roles, sellers, shops, shop_domains, shop_settings ──
+// ── (see COMPLETE-BUILD-GUIDE PART II, modules M01–M06 tables).              ──
+//
+// This initial model exists so `prisma migrate dev` has a baseline and the
+// Step 1 verify gate (`db:generate`) passes.
+
+model SystemCheck {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("system_checks")
+}

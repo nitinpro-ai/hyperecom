@@ -1,0 +1,69 @@
+# ApnaCity local development stack (COMPLETE-BUILD-GUIDE Step 1).
+# Requires Docker Desktop. Start: docker compose up -d
+# Services: Postgres+PostGIS (truth) · Redis (cache/jobs) · MinIO (S3) · Mailpit (dev email)
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: apnacity-db
+    environment:
+      POSTGRES_USER: apnacity
+      POSTGRES_PASSWORD: apnacity
+      POSTGRES_DB: apnacity
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apnacity -d apnacity"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: apnacity-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: apnacity-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: apnacity
+      MINIO_ROOT_PASSWORD: apnacity-secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: apnacity-mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # web UI
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

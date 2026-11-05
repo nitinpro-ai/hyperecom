@@ -1,0 +1,37 @@
+{
+  "name": "hyperecom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ApnaCity — hyperlocal multi-vendor e-commerce marketplace (monorepo)",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "dev": "turbo run dev",
+    "dev:api": "pnpm --filter @apnacity/api dev",
+    "dev:web": "pnpm --filter @apnacity/web dev",
+    "dev:seller": "pnpm --filter @apnacity/seller-portal dev",
+    "dev:admin": "pnpm --filter @apnacity/admin-portal dev",
+    "db:migrate": "pnpm --filter @apnacity/db migrate",
+    "db:generate": "pnpm --filter @apnacity/db generate",
+    "db:seed": "pnpm --filter @apnacity/db seed",
+    "db:studio": "pnpm --filter @apnacity/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild"
+    ]
+  }
+}
