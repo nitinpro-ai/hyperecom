@@ -59,3 +59,244 @@ model SystemCheck {
 
   @@map("system_checks")
 }
+
+// M30 — Idempotency (Foundation). Safe retries for mutating POSTs.
+// Spec: COMPLETE-BUILD-GUIDE PART II M30. Same key+hash → stored response;
+// same key+different request → 409. TTL 24 h (expired rows swept, then reusable).
+model IdempotencyKey {
+  key            String   @id
+  userId         String   @map("user_id") @db.Uuid
+  endpoint       String
+  requestHash    String   @map("request_hash")
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// M29 — Feature Flags (Foundation). Kill switches + gradual rollout.
+// Spec: COMPLETE-BUILD-GUIDE PART II M29. eval(keys, context) with 30 s cache;
+// DB unreachable → fall back to default_enabled.
+model FeatureFlag {
+  key            String   @id
+  description    String?
+  defaultEnabled Boolean  @default(false) @map("default_enabled")
+  rules          Json? // [{ when: {city?/shop?/userId?/percentage?}, enabled: bool }]
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("feature_flags")
+}
+
+// ---------------------------------------------------------------------------
+// M03 — Geography & Serviceability (Step 2). Spec: COMPLETE-BUILD-GUIDE PART II
+// M03 + docs/spec/03 §2. Geometry columns are declared Unsupported() so Prisma
+// tracks the tables while the geometry types + GiST indexes are created in the
+// raw SQL migration (Prisma cannot express PostGIS geometry / gist directly).
+// ---------------------------------------------------------------------------
+
+model Country {
+  id        String  @id @default(uuid()) @db.Uuid
+  isoCode   String  @unique @map("iso_code") @db.VarChar(2)
+  name      String
+  phoneCode String? @map("phone_code") @db.VarChar(5)
+
+  states State[]
+
+  @@map("countries")
+}
+
+model State {
+  id        String  @id @default(uuid()) @db.Uuid
+  countryId String  @map("country_id") @db.Uuid
+  code      String  @db.VarChar(10)
+  name      String
+  isActive  Boolean @default(true) @map("is_active")
+
+  country Country @relation(fields: [countryId], references: [id])
+  cities  City[]
+
+  @@unique([countryId, code])
+  @@map("states")
+}
+
+model City {
+  id       String  @id @default(uuid()) @db.Uuid
+  stateId  String  @map("state_id") @db.Uuid
+  name     String
+  slug     String  @unique
+  timezone String  @default("Asia/Kolkata")
+  // center geometry(Point,4326) — set via SQL migration
+  center   Unsupported("geometry(Point, 4326)")?
+  isActive Boolean @default(true) @map("is_active")
+
+  state         State          @relation(fields: [stateId], references: [id])
+  localities    Locality[]
+  pincodes      Pincode[]
+  deliveryZones DeliveryZone[]
+  userRoles     UserRole[]
+
+  @@map("cities")
+}
+
+model Locality {
+  id     String @id @default(uuid()) @db.Uuid
+  cityId String @map("city_id") @db.Uuid
+  name   String
+  slug   String
+  // boundary geometry(MultiPolygon,4326) — set via SQL migration
+  boundary Unsupported("geometry(MultiPolygon, 4326)")?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, slug])
+  @@map("localities")
+}
+
+model Pincode {
+  id            String  @id @default(uuid()) @db.Uuid
+  cityId        String  @map("city_id") @db.Uuid
+  pincode       String  @unique @db.VarChar(6)
+  isServiceable Boolean @default(true) @map("is_serviceable")
+  // boundary geometry(MultiPolygon,4326) — set via SQL migration
+  boundary Unsupported("geometry(MultiPolygon, 4326)")?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@map("pincodes")
+}
+
+model DeliveryZone {
+  id            String  @id @default(uuid()) @db.Uuid
+  cityId        String  @map("city_id") @db.Uuid
+  name          String
+  zoneType      String  @map("zone_type") @db.VarChar(13) // CIRCLE_RADIUS | POLYGON
+  radiusM       Int?    @map("radius_m")
+  feePaise      BigInt  @map("fee_paise")
+  freeAbovePaise BigInt? @map("free_above_paise")
+  etaMinMinutes Int     @map("eta_min_minutes")
+  etaMaxMinutes Int     @map("eta_max_minutes")
+  isActive      Boolean @default(true) @map("is_active")
+  // center geometry(Point,4326) + boundary geometry(MultiPolygon,4326) — via SQL migration
+  center   Unsupported("geometry(Point, 4326)")?
+  boundary Unsupported("geometry(MultiPolygon, 4326)")?
+
+  city City @relation(fields: [cityId], references: [id])
+
+  @@map("delivery_zones")
+}
+
+model GeocodeCache {
+  cacheKey  String   @id @map("cache_key")
+  lat       Float?
+  lng       Float?
+  formatted String?
+  fetchedAt DateTime @default(now()) @map("fetched_at") @db.Timestamptz(3)
+
+  @@map("geocode_cache")
+}
+
+// ---------------------------------------------------------------------------
+// M02 — Users, Profiles & RBAC (Step 4). Spec: COMPLETE-BUILD-GUIDE PART II M02.
+// shop_id columns are plain UUIDs until M05 (shops) adds the FK.
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  phone        String    @unique @db.VarChar(15)
+  email        String?   @unique
+  passwordHash String?   @map("password_hash")
+  name         String
+  locale       String    @default("EN") @db.VarChar(2) // EN | HI
+  status       String    @default("ACTIVE") @db.VarChar(10) // ACTIVE | BLOCKED | DELETED
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  roles           UserRole[]
+  customerProfile CustomerProfile?
+  addresses       Address[]
+
+  @@map("users")
+}
+
+model Role {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique @db.VarChar(20)
+  // SUPER_ADMIN | CITY_ADMIN | SELLER_OWNER | SELLER_STAFF | CUSTOMER | DELIVERY_PARTNER | CUSTOMER_SUPPORT
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique @db.VarChar(60)
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String  @map("user_id") @db.Uuid
+  roleId String  @map("role_id") @db.Uuid
+  cityId String? @map("city_id") @db.Uuid
+  shopId String? @map("shop_id") @db.Uuid // FK added with M05
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+  city City? @relation(fields: [cityId], references: [id])
+
+  // Composite PK with COALESCE on nullable city/shop is applied in the SQL
+  // migration (Prisma can't express a COALESCE primary key).
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model CustomerProfile {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  defaultAddressId String?  @map("default_address_id") @db.Uuid
+  gender           String?  @db.VarChar(1)
+  birthDate        DateTime? @map("birth_date") @db.Date
+  marketingConsent Boolean  @default(false) @map("marketing_consent")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("customer_profiles")
+}
+
+model Address {
+  id         String  @id @default(uuid()) @db.Uuid
+  userId     String  @map("user_id") @db.Uuid
+  label      String?
+  line1      String
+  line2      String?
+  landmark   String?
+  localityId String? @map("locality_id") @db.Uuid
+  pincode    String  @db.VarChar(6)
+  latitude   Float?
+  longitude  Float?
+  isDefault  Boolean @default(false) @map("is_default")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("addresses")
+}
