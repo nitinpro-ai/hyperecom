@@ -6,10 +6,16 @@ import { IdempotencyModule } from "./idempotency/idempotency.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
 import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
+import { SellersModule } from "./sellers/sellers.module";
+import { ShopsModule } from "./shops/shops.module";
+import { MediaModule } from "./media/media.module";
+import { CatalogModule } from "./catalog/catalog.module";
+import { ListingsModule } from "./listings/listings.module";
 
 /**
- * Root module. Step 4: Auth + Users + RBAC wired. TenantGuard lands with M05.
- * One module per folder; cross-module access only via ports/events (D-015).
+ * Root module. Steps 4–7: Auth · Users · RBAC · Sellers · Shops · Media ·
+ * Catalog · Listings. One module per folder; cross-module access only via
+ * ports/events (D-015).
  */
 @Module({
   imports: [
@@ -20,6 +26,11 @@ import { UsersModule } from "./users/users.module";
     FeatureFlagsModule,
     AuthModule,
     UsersModule,
+    SellersModule,
+    ShopsModule,
+    MediaModule,
+    CatalogModule,
+    ListingsModule,
   ],
 })
 export class AppModule {}

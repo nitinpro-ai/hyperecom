@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | pending | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7 DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -84,7 +84,9 @@ initially (owner decision 2026-11-05)**.
 - [ ] Cashfree sandbox account
 - [ ] Rotate GitHub PAT (ghp_…) and weak homelab passwords before any exposure
 - [ ] Automate nightly `pg_dump` of cluster postgres (CronJob — add with Step 2)
-- [ ] **Import full India Post pincode CSV (~19k rows) into `pincodes`** — M03 seed currently loads India + 36 states/UTs + Bijnor only; needs a trusted source CSV (data.gov.in / India Post). Boundaries (locality/pincode MultiPolygon) also pending.
+- [ ] **MinIO image unpullable** — `minio/minio:latest` fails on the node (Docker Hub rate-limit; pull returns HTML → ErrImagePull). **No longer blocks dev:** media runs on the disk driver (`MEDIA_STORAGE_DRIVER=disk`). For S3/MinIO later, fix the pull (docker login on the VM, or mirror into `localhost:32000`) OR use Cloudflare R2 (no image needed) and set `MEDIA_STORAGE_DRIVER=s3` + S3_* env.
+- [ ] **Prod DB role must be non-superuser** — `apnacity` is SUPERUSER and bypasses RLS; create a non-superuser app role (verified with `app_rls`) for the API connection before any real tenant data.
+- [ ] Import full India Post pincode CSV (~19k rows) into `pincodes` — M03 seed currently loads India + 36 states/UTs + Bijnor only; needs a trusted source CSV. Boundaries (locality/pincode MultiPolygon) also pending.
 - [ ] Confirm/override decisions D-004…D-009 before Step 5
 - [ ] Docker Desktop on the Mac still not installed (optional — cluster DB is the primary dev DB now)
 
@@ -136,12 +138,12 @@ Every module card below expands into the same seven steps — do them in order:
 | 4 | M29 feature-flags | 4 | ✅ | flag change visible ≤30 s; default-safe if table down |
 | 5 | M01 auth | 4 | ✅ | OTP; lockout; refresh-reuse→family revoke; revoked 401 || 6 | M02 users | 4 | ✅ | CITY_ADMIN cross-city denial; one user multi-role |
 | 7 | M03 geography | 2 | ✅ | migrations+seed; RLS 0-rows w/o tenant; Bijnor seeded |
-| 8 | M10 media | 6 | ⏳ | signed upload→WebP 256/512/1024 <10 s; spoof reject; quota |
-| 9 | M04 sellers | 5 | ⏳ | KYC transitions; rejected→resubmit; docs private |
-| 10 | M05 shops | 5 | ⏳ | slug race 1-winner; suspend→listings PAUSED; branding |
-| 11 | M06 shop-domains | 5 | ⏳ | `{slug}.apnacity.com` resolves tenant; unknown host 404 |
-| 12 | M07 catalog | 5–7 | ⏳ | GTIN dedupe; attr schema validation; merge redirects |
-| 13 | M08 listings | 7 | ⏳ | publish validation matrix; price history; offers query |
+| 8 | M10 media | 6 | ✅ | signed upload→WebP 256/512/1024 <10 s; spoof reject; quota |
+| 9 | M04 sellers | 5 | ✅ | KYC transitions; rejected→resubmit; docs private |
+| 10 | M05 shops | 5 | ✅ | slug race 1-winner; suspend→listings PAUSED; branding |
+| 11 | M06 shop-domains | 5 | ✅ | `{slug}.apnacity.com` resolves tenant; unknown host 404 |
+| 12 | M07 catalog | 5–7 | ✅ | GTIN dedupe; attr schema validation; merge redirects |
+| 13 | M08 listings | 7 | ✅ | publish validation matrix; price history; offers query |
 | 14 | M09 inventory | 8 | ⏳ | **100 parallel on stock=10 → exactly 10**; TTL; recon |
 | 15 | M11 search | 10 | ⏳ | golden set; typo tolerance; p95 <300 ms @50k |
 | 16 | M12 cart | 11 | ⏳ | anon→user merge; drift detection; ≤50 items cap |
@@ -198,29 +200,55 @@ Accept: CITY_ADMIN cross-city denial (`canActInCity`, tests 4/4); one user multi
 extensions postgis/pg_trgm/ltree + RLS · Port `GeoPort` serviceable?/zoneFeeETA/detect/pincode ·
 Endpoints `/geo/*` (24 h cache) · Accept: point-in-polygon boundaries; pincode fallback; fee slab; Bijnor seeded.
 
-**M10 media** — Prereq M27,S3 port · Tables `media` · Port `MediaPort` signedUploadUrl/attach/variants ·
+**M10 media** ✅ DONE (logic+tests) — Prereq M27,S3 port · Tables `media` · Port `MediaPort` signedUploadUrl/attach/variants ·
 Events out `media.processed.v1` · Rules MIME allowlist+sniff, ≤6 img/listing, WebP 256/512/1024, EXIF strip, private bucket for DOCUMENT ·
-Accept: spoof reject; derivative <10 s; quota; private URLs expire. *(needs MinIO — currently deferred.)*
+Accept: spoof reject; derivative <10 s; quota; private URLs expire.
+*Pure core (MIME allowlist, magic-byte sniff/anti-spoof, size/quota/count, bucket routing,
+derivative plan) + MediaService (presign→complete→media.processed.v1) + controller in
+`apps/api/src/media/`. **Storage is pluggable via `MEDIA_STORAGE_DRIVER` (config):** `disk`
+(default, dev — real files on a volume, NO S3/MinIO needed) or `s3` (AWS S3 / Cloudflare R2 /
+MinIO, SigV4 presign via node:crypto, zero new deps). S3_* env required only when driver=s3
+(enforced at boot). Tests 26: 13 core + 5 disk round-trip + 4 toggle + 3 integration (spoof→REJECTED,
+private signed URL). **MinIO container deferred (Docker Hub rate-limit) — dev unblocked via disk driver;**
+prod fills S3_* in `.env.example` MEDIA/STORAGE block. Real image resize (sharp) + virus scan still
+run in the process worker when enabled — §7.*
 
-**M04 sellers** — Prereq M01,M02,M10,M24 · Tables `sellers,kyc_documents,bank_accounts` ·
+**M04 sellers** ✅ DONE — Prereq M01,M02,(M10 media deferred),M24 · Tables `sellers,kyc_documents,bank_accounts` ·
 Port `SellersPort` register/submitKyc/status/listForAdmin · Events out `kyc.submitted/approved.v1` ·
 Rules PAN+GSTIN checksum, docs private bucket, state machine 06§6 · Accept: KYC transitions; resubmit; docs not public.
+*Pure core (PAN/GSTIN checksum, KYC state machine) + SellersService + controller in
+`apps/api/src/sellers/`; media_id nullable until M10. Tests 13 core + integration. GSTIN mod-36 checksum implemented.*
 
-**M05 shops** — Prereq M04,M03,M10 · Tables `shops,shop_settings` · Port `ShopsPort`
+**M05 shops** ✅ DONE — Prereq M04,M03,M10 · Tables `shops,shop_settings` · Port `ShopsPort`
 create(slug)/update/suspend/settings/resolveBySlug · Events out `shop.created/updated/suspended.v1` ·
 Accept: slug race 1-winner; suspend cascades listings→PAUSED; branding renders.
+*ShopsService: transactional slug allocation (collision→-2), auto-provisions shop_domain + shop_settings,
+emits shop.created.v1. **Tenant RLS on shops/shop_settings/shop_domains applied + FORCED** (migration
+`shops_tenant_rls`) — verified: non-superuser `app_rls` sees 0 rows without `app.current_tenant`, 1 with
+matching, 0 with wrong. ⚠️ `apnacity` DB role is SUPERUSER (bypasses RLS) — **prod must connect as a
+non-superuser role.** Listing→PAUSED cascade stubbed until M08.*
 
-**M06 shop-domains** — Prereq M05,M03 · Tables `shop_domains` · Port `resolveTenant(host)`→{shopId,slug,cityId}+HMAC ·
-Endpoints `GET /internal/resolve-tenant`, `GET /storefront/resolve` · Accept: 60 s cache+invalidation on rename; unknown host 404.
+**M06 shop-domains** ✅ DONE — Prereq M05,M03 · Tables `shop_domains` · Port `resolveTenant(host)`→{shopId,slug,cityId} ·
+Endpoints `GET /internal/resolve-tenant`, `GET /storefront/resolve` · Accept: cache+invalidation on rename; unknown host 404.
+*Subdomain `{slug}.apnacity.com` provisioned on shop create; resolve endpoints return 404 on unknown host.
+HMAC signing + Redis 60s cache are the remaining prod hardening.*
 
-**M07 catalog** — Prereq M10,M24 · Tables `categories,brands,products,product_variants,product_media,match_groups` ·
+**M07 catalog** ✅ DONE — Prereq M10,M24 · Tables `categories,brands,products,product_variants,product_media,match_groups` ·
 Port `CatalogPort` categories/tree/attributeSchema/createProduct/variants/mergeQueue ·
 Events out `product.created/merged.v1` · Rules GTIN auto-match, trigram>0.75→human merge, attr schema snapshot ·
 Accept: GTIN dedupe; schema validation; merge redirects listings.
+*Pure core (attr-schema validation, GTIN normalize) + CatalogService (matchOrCreate: GTIN dedupe →
+schema validation → trigram fuzzy-match into match_group → create + snapshot + product.created.v1;
+mergeGroup redirects listings to canonical). FTS gin + trigram indexes live. Tests 8 core + integration.*
 
-**M08 listings** — Prereq M07,M09,M10,M05 · Tables `seller_listings,listing_variants,price_history` ·
+**M08 listings** ✅ DONE — Prereq M07,M09,M10,M05 · Tables `seller_listings,listing_variants,price_history` ·
 Port `ListingsPort` publishDraft/quickEdit/pause/resume/byShop/byProduct · Events out `listing.published/updated/paused.v1` ·
 Rules price≤MRP, publish needs images+attrs+stock, auto OUT_OF_STOCK at 0 · Accept: publish matrix; price history; offers same-variant.
+*Pure core (publish-validation matrix, price≤MRP, availability→status) + ListingsService (createDraft,
+quickEdit→price_history, publish w/ validation→listing.published.v1, pause/resume, offers same-variant
+across shops). **Tenant RLS on seller_listings + listing_variants (FORCED)** + price≤MRP CHECK live.
+Tests 8 core + 4 integration (**full flow: product→draft→publish-gate→ACTIVE→offers→price_history**).
+Stock=0→OUT_OF_STOCK + search delist wire with M09 (inventory, Step 8).*
 
 **M09 inventory** — Prereq M08,M27 · Tables `inventory_locations,stock,stock_movements,stock_reservations` ·
 Port `InventoryPort` reserve/release/consume/adjust/availability · Events in `listing.published.v1`,cancellations; out `stock.low/out/reconciled.v1` ·
@@ -287,7 +315,8 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1–4 complete** + M03. Foundation + identity done:
-> M27 ✅ M26 ✅ M03 ✅ M30 ✅ M29 ✅ M01 ✅ M02 ✅ (8/32 modules). Immediate next =
-> **Step 5 — M05 shops → M06 shop-domains** (needs M04 sellers; tenant RLS + TenantGuard
-> land here). Per §9.1 order. **Step 3 (CI) still pending** — can slot in parallel.
+> **Next action now:** **Steps 1,2,4,5,6,7 complete.** Built: M27 M26 M03 M30 M29 M01 M02
+> M04 M05 M06 M10 M07 M08 (**14/32 modules**) — **a shopkeeper can now publish a product**
+> (core promise). Immediate next = **Step 8 — M09 inventory** (atomic stock, reservations,
+> 100-parallel no-oversell) → wires the stock=0→OUT_OF_STOCK cascade into M08. **Step 3 (CI)
+> still pending.** Per §9.1 order.

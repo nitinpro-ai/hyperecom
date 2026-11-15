@@ -69,6 +69,27 @@ curl http://192.168.2.224:30400/v1/health    # {"status":"ok",...}
 curl -o /dev/null -w '%{http_code}\n' http://192.168.2.224:30280   # 200
 ```
 
+## Media storage (M10) — driver toggle
+
+Media (product images, logos, KYC docs, PoD) is backed by a **pluggable storage
+driver** selected by `MEDIA_STORAGE_DRIVER` (see `packages/config` + `.env.example`
+"MEDIA / STORAGE" block). **No S3 or MinIO is required for dev.**
+
+| Driver | When | Needs |
+|---|---|---|
+| `disk` (default) | dev + cluster now | `MEDIA_DISK_ROOT` (point at a **mounted PVC** in the cluster so files persist), `MEDIA_PUBLIC_BASE_URL`, `MEDIA_SIGN_SECRET` |
+| `s3` | staging/prod | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PUBLIC`, `S3_BUCKET_PRIVATE`, `S3_FORCE_PATH_STYLE`, `CDN_BASE_URL` — app refuses to boot if any missing |
+
+**MinIO status:** the `minio` Deployment is scaled to **0** — `minio/minio:latest`
+is unpullable on this node (Docker Hub rate-limit → `ErrImagePull`, pull returns HTML).
+Dev is **unblocked** via the disk driver. To enable S3 later, EITHER:
+- mirror a MinIO image into the local registry (`localhost:32000`, see Images gotcha) or `docker login` on the VM, scale minio to 1, then set `MEDIA_STORAGE_DRIVER=s3` + the S3_* values pointing at `minio.apnacity.svc:9000`; OR
+- use **Cloudflare R2** (no cluster image needed): `S3_ENDPOINT=https://<acct>.r2.cloudflarestorage.com`, `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`.
+
+**Prod DB role:** the API must connect as a **non-superuser** Postgres role — `apnacity`
+is a SUPERUSER and bypasses RLS (tenant isolation won't apply). Create a dedicated
+app role (verified working as `app_rls`) before real tenant data.
+
 ## Exposure
 
 **Dev = LAN-only** (owner decision: **no Cloudflare tunnel initially** — test from the

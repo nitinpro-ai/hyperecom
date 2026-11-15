@@ -138,6 +138,7 @@ model City {
   pincodes      Pincode[]
   deliveryZones DeliveryZone[]
   userRoles     UserRole[]
+  shops         Shop[]
 
   @@map("cities")
 }
@@ -218,6 +219,8 @@ model User {
   roles           UserRole[]
   customerProfile CustomerProfile?
   addresses       Address[]
+  seller          Seller?
+  media           Media[]
 
   @@map("users")
 }
@@ -299,4 +302,297 @@ model Address {
   user User @relation(fields: [userId], references: [id])
 
   @@map("addresses")
+}
+
+// ---------------------------------------------------------------------------
+// M04 Sellers & KYC · M05 Shops · M06 Shop Domains (Step 5). Spec: PART II
+// M04/M05/M06. media_id references are nullable until M10 media (Step 6) exists.
+// ---------------------------------------------------------------------------
+
+model Seller {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  legalName      String    @map("legal_name")
+  displayName    String    @map("display_name")
+  businessType   String    @map("business_type") @db.VarChar(20) // INDIVIDUAL|PROPRIETORSHIP|PARTNERSHIP|LLP|PVT_LTD
+  pan            String    @db.VarChar(10)
+  gstin          String?   @db.VarChar(15)
+  status         String    @default("DRAFT") @db.VarChar(12) // DRAFT|KYC_PENDING|APPROVED|SUSPENDED|REJECTED
+  kycSubmittedAt DateTime? @map("kyc_submitted_at") @db.Timestamptz(3)
+  approvedAt     DateTime? @map("approved_at") @db.Timestamptz(3)
+  approvedBy     String?   @map("approved_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id])
+  kycDocuments KycDocument[]
+  shops        Shop[]
+
+  @@map("sellers")
+}
+
+model BankAccount {
+  id          String  @id @default(uuid()) @db.Uuid
+  ownerType   String  @map("owner_type") @db.VarChar(15) // SELLER|DELIVERY_PARTNER
+  ownerId     String  @map("owner_id") @db.Uuid
+  holderName  String  @map("holder_name")
+  accountNoEnc String @map("account_no_enc") // encrypted at rest
+  ifsc        String  @db.VarChar(11)
+  verified    Boolean @default(false)
+  isPrimary   Boolean @default(true) @map("is_primary")
+
+  @@index([ownerType, ownerId])
+  @@map("bank_accounts")
+}
+
+model KycDocument {
+  id         String  @id @default(uuid()) @db.Uuid
+  sellerId   String  @map("seller_id") @db.Uuid
+  docType    String  @map("doc_type") @db.VarChar(20)
+  mediaId    String? @map("media_id") @db.Uuid // FK to media added with M10
+  status     String  @default("PENDING") @db.VarChar(10) // PENDING|VERIFIED|REJECTED
+  verifiedBy String? @map("verified_by") @db.Uuid
+  note       String?
+
+  seller Seller @relation(fields: [sellerId], references: [id])
+
+  @@map("kyc_documents")
+}
+
+model Shop {
+  id           String   @id @default(uuid()) @db.Uuid // tenant root
+  sellerId     String   @map("seller_id") @db.Uuid
+  cityId       String   @map("city_id") @db.Uuid
+  name         String
+  slug         String   @unique
+  logoMediaId  String?  @map("logo_media_id") @db.Uuid
+  bannerMediaId String? @map("banner_media_id") @db.Uuid
+  description  String?
+  categoryIds  String[] @default([]) @map("category_ids") @db.Uuid
+  status       String   @default("PENDING") @db.VarChar(9) // PENDING|ACTIVE|SUSPENDED|CLOSED
+  ratingAvg    Decimal  @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount  Int      @default(0) @map("rating_count")
+  openedAt     DateTime? @map("opened_at") @db.Timestamptz(3)
+  closedAt     DateTime? @map("closed_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  seller   Seller        @relation(fields: [sellerId], references: [id])
+  city     City          @relation(fields: [cityId], references: [id])
+  domain   ShopDomain?
+  settings ShopSettings?
+  listings SellerListing[]
+
+  @@map("shops")
+}
+
+model ShopDomain {
+  id         String    @id @default(uuid()) @db.Uuid
+  shopId     String    @unique @map("shop_id") @db.Uuid
+  host       String    @unique
+  hostType   String    @default("SUBDOMAIN") @map("host_type") @db.VarChar(10)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(3)
+  sslStatus  String    @default("PENDING") @map("ssl_status") @db.VarChar(8) // PENDING|ACTIVE|FAILED
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@map("shop_domains")
+}
+
+model ShopSettings {
+  id                     String  @id @default(uuid()) @db.Uuid
+  shopId                 String  @unique @map("shop_id") @db.Uuid
+  deliveryMode           String  @default("BOTH") @map("delivery_mode") @db.VarChar(9) // SELF|PLATFORM|BOTH
+  pickupAddressId        String? @map("pickup_address_id") @db.Uuid
+  openingHours           Json?   @map("opening_hours")
+  returnPolicyText       String? @map("return_policy_text")
+  minOrderPaise          BigInt  @default(0) @map("min_order_paise")
+  commissionRateOverride Decimal? @map("commission_rate_override") @db.Decimal(5, 2)
+  locale                 String  @default("EN") @db.VarChar(2)
+  theme                  Json?
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@map("shop_settings")
+}
+
+// ---------------------------------------------------------------------------
+// M10 — Media (Step 6). Signed uploads, derivatives, scanning, per-shop quota.
+// Spec: PART II M10. Storage via StoragePort (dev: local; prod: MinIO/S3).
+// ---------------------------------------------------------------------------
+
+model Media {
+  id          String  @id @default(uuid()) @db.Uuid
+  ownerUserId String  @map("owner_user_id") @db.Uuid
+  shopId      String? @map("shop_id") @db.Uuid
+  kind        String  @db.VarChar(14) // PRODUCT_IMAGE|LOGO|BANNER|POD|DOCUMENT|RETURN_PHOTO
+  storageKey  String  @map("storage_key")
+  mime        String  @db.VarChar(30)
+  width       Int?
+  height      Int?
+  sizeBytes   Int     @map("size_bytes")
+  variants    Json? // { "256": key, "512": key, "1024": key }
+  scanStatus  String  @default("PENDING") @map("scan_status") @db.VarChar(9) // PENDING|CLEAN|REJECTED
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  owner User @relation(fields: [ownerUserId], references: [id])
+
+  @@index([shopId])
+  @@index([ownerUserId])
+  @@map("media")
+}
+
+// ---------------------------------------------------------------------------
+// M07 Catalog (categories/brands/products/variants/media/match_groups) +
+// M08 Listings (seller_listings/listing_variants/price_history). Step 7.
+// Spec: PART II M07/M08. category.path is ltree (set via SQL migration); FTS +
+// trigram indexes added in SQL. listing_variants carries shop_id for tenant RLS
+// + the UNIQUE(shop_id, seller_sku) the spec requires.
+// ---------------------------------------------------------------------------
+
+model Category {
+  id               String   @id @default(uuid()) @db.Uuid
+  parentId         String?  @map("parent_id") @db.Uuid
+  name             String
+  slug             String   @unique
+  // path ltree — maintained via SQL (Prisma has no ltree type)
+  pathText         String   @map("path_text") // mirror of ltree path as text
+  attributeSchema  Json?    @map("attribute_schema")
+  iconMediaId      String?  @map("icon_media_id") @db.Uuid
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  requiresApproval Boolean  @default(false) @map("requires_approval")
+  returnWindowDays Int      @default(7) @map("return_window_days")
+  isNonReturnable  Boolean  @default(false) @map("is_non_returnable")
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String  @unique
+  logoMediaId String? @map("logo_media_id") @db.Uuid
+  isActive    Boolean @default(true) @map("is_active")
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id                      String   @id @default(uuid()) @db.Uuid
+  categoryId              String   @map("category_id") @db.Uuid
+  brandId                 String?  @map("brand_id") @db.Uuid
+  name                    String
+  slug                    String   @unique
+  description             String?
+  gtin                    String?  @unique @db.VarChar(14)
+  attributes              Json?
+  status                  String   @default("DRAFT") @db.VarChar(15) // DRAFT|PENDING_REVIEW|ACTIVE|INACTIVE
+  matchGroupId            String?  @map("match_group_id") @db.Uuid
+  createdBy               String?  @map("created_by") @db.Uuid
+  categorySchemaSnapshot  Json?    @map("category_schema_snapshot")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  category Category         @relation(fields: [categoryId], references: [id])
+  brand    Brand?           @relation(fields: [brandId], references: [id])
+  variants ProductVariant[]
+  listings SellerListing[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id           String  @id @default(uuid()) @db.Uuid
+  productId    String  @map("product_id") @db.Uuid
+  sku          String? @unique
+  attributes   Json // {"size":"M","color":"Blue"}
+  weightGrams  Int?    @map("weight_grams")
+  dimensionsMm Json?   @map("dimensions_mm")
+  barcode      String? @db.VarChar(20)
+  isActive     Boolean @default(true) @map("is_active")
+
+  product         Product          @relation(fields: [productId], references: [id])
+  listingVariants ListingVariant[]
+
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String? @map("product_id") @db.Uuid
+  variantId String? @map("variant_id") @db.Uuid
+  shopId    String? @map("shop_id") @db.Uuid
+  mediaId   String  @map("media_id") @db.Uuid
+  sortOrder Int     @default(0) @map("sort_order")
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  @@index([productId])
+  @@map("product_media")
+}
+
+model MatchGroup {
+  id                 String   @id @default(uuid()) @db.Uuid
+  status             String   @default("OPEN") @db.VarChar(9) // OPEN|MERGED|DISMISSED
+  canonicalProductId String?  @map("canonical_product_id") @db.Uuid
+  similarity         Decimal? @db.Decimal(4, 3)
+  resolvedBy         String?  @map("resolved_by") @db.Uuid
+
+  @@map("match_groups")
+}
+
+model SellerListing {
+  id             String    @id @default(uuid()) @db.Uuid // tenant
+  shopId         String    @map("shop_id") @db.Uuid
+  productId      String    @map("product_id") @db.Uuid
+  titleOverride  String?   @map("title_override")
+  status         String    @default("DRAFT") @db.VarChar(13) // DRAFT|PAUSED|ACTIVE|OUT_OF_STOCK|REJECTED
+  listedAt       DateTime? @map("listed_at") @db.Timestamptz(3)
+  deactivatedAt  DateTime? @map("deactivated_at") @db.Timestamptz(3)
+
+  product  Product          @relation(fields: [productId], references: [id])
+  shop     Shop             @relation(fields: [shopId], references: [id])
+  variants ListingVariant[]
+
+  @@unique([shopId, productId])
+  @@index([shopId, status])
+  @@index([productId, status])
+  @@map("seller_listings")
+}
+
+model ListingVariant {
+  id          String  @id @default(uuid()) @db.Uuid // tenant
+  listingId   String  @map("listing_id") @db.Uuid
+  shopId      String  @map("shop_id") @db.Uuid // carried for tenant RLS + unique seller_sku
+  variantId   String  @map("variant_id") @db.Uuid
+  sellerSku   String  @map("seller_sku")
+  mrpPaise    BigInt  @map("mrp_paise")
+  pricePaise  BigInt  @map("price_paise")
+  taxRateBp   Int     @default(0) @map("tax_rate_bp")
+  stockTracked Boolean @default(true) @map("stock_tracked")
+  isActive    Boolean @default(true) @map("is_active")
+
+  listing        SellerListing  @relation(fields: [listingId], references: [id])
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  priceHistory   PriceHistory[]
+
+  @@unique([listingId, variantId])
+  @@unique([shopId, sellerSku])
+  @@map("listing_variants")
+}
+
+model PriceHistory {
+  id               String   @id @default(uuid()) @db.Uuid
+  listingVariantId String   @map("listing_variant_id") @db.Uuid
+  pricePaise       BigInt   @map("price_paise")
+  changedBy        String?  @map("changed_by") @db.Uuid
+  reason           String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listingVariant ListingVariant @relation(fields: [listingVariantId], references: [id])
+
+  @@map("price_history")
 }

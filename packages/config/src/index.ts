@@ -31,13 +31,28 @@ export const envSchema = z.object({
   // redis
   REDIS_URL: z.string().default("redis://localhost:6379"),
 
-  // storage
-  S3_ENDPOINT: z.string().default("http://localhost:9000"),
+  // ---- storage (media / M10) ----------------------------------------------
+  // MEDIA_STORAGE_DRIVER toggles the backend:
+  //   "disk" (default, dev) — files on a local/mounted volume, NO S3 needed.
+  //   "s3"   (prod/staging) — S3-compatible object store (AWS S3, Cloudflare R2,
+  //          or MinIO). When set to "s3", the S3_* values below become REQUIRED
+  //          (enforced in loadEnv's refine). Flip this to enable S3.
+  MEDIA_STORAGE_DRIVER: z.enum(["disk", "s3"]).default("disk"),
+
+  // disk driver config (used when MEDIA_STORAGE_DRIVER=disk)
+  MEDIA_DISK_ROOT: z.string().default("./.media-data"),
+  // public base URL the API serves disk-stored media from (dev)
+  MEDIA_PUBLIC_BASE_URL: z.string().default("http://localhost:4000/v1/media/file"),
+  MEDIA_SIGNED_URL_TTL: int(600), // 10 min, applies to both drivers
+
+  // s3 driver config (REQUIRED only when MEDIA_STORAGE_DRIVER=s3 — see refine)
+  S3_ENDPOINT: z.string().default("http://localhost:9000"), // MinIO; AWS: leave blank for default, R2: account endpoint
   S3_REGION: z.string().default("us-east-1"),
   S3_BUCKET_PUBLIC: z.string().default("apnacity-media"),
   S3_BUCKET_PRIVATE: z.string().default("apnacity-docs"),
-  S3_ACCESS_KEY_ID: z.string().min(1),
-  S3_SECRET_ACCESS_KEY: z.string().min(1),
+  S3_ACCESS_KEY_ID: z.string().default(""),
+  S3_SECRET_ACCESS_KEY: z.string().default(""),
+  S3_FORCE_PATH_STYLE: bool, // true for MinIO; false for AWS S3
   CDN_BASE_URL: z.string().default(""),
 
   // auth
@@ -72,6 +87,25 @@ export const envSchema = z.object({
   SENTRY_DSN: z.string().default(""),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default(""),
   FEATURE_FLAG_DEFAULTS: z.string().default("{}"),
+}).superRefine((env, ctx) => {
+  // When the S3 driver is enabled, its credentials + buckets become mandatory.
+  if (env.MEDIA_STORAGE_DRIVER === "s3") {
+    const required: Array<keyof typeof env> = [
+      "S3_ACCESS_KEY_ID",
+      "S3_SECRET_ACCESS_KEY",
+      "S3_BUCKET_PUBLIC",
+      "S3_BUCKET_PRIVATE",
+    ];
+    for (const key of required) {
+      if (!env[key] || String(env[key]).trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `required when MEDIA_STORAGE_DRIVER=s3`,
+        });
+      }
+    }
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
