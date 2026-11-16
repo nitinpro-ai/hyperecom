@@ -899,3 +899,101 @@ model WebhookEvent {
   @@unique([provider, eventType, externalRef]) // replay guard
   @@map("webhook_events")
 }
+
+// ---------------------------------------------------------------------------
+// M17 Delivery Engine · M18 Delivery Partners (Step 13). Geometry columns via
+// SQL migration. Spec: PART II M17/M18.
+// ---------------------------------------------------------------------------
+
+model DeliveryPartner {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @unique @map("user_id") @db.Uuid
+  cityId        String    @map("city_id") @db.Uuid
+  vehicle       String    @db.VarChar(8) // BIKE|SCOOTER|BICYCLE|TEMPO|WALK
+  kycStatus     String    @default("PENDING") @map("kyc_status") @db.VarChar(9) // PENDING|APPROVED|REJECTED
+  bankAccountId String?   @map("bank_account_id") @db.Uuid
+  isAvailable   Boolean   @default(false) @map("is_available")
+  lastLocation  Unsupported("geometry(Point, 4326)")? @map("last_location")
+  lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz(3)
+  currentJobId  String?   @map("current_job_id") @db.Uuid
+  ratingAvg     Decimal   @default(5) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount   Int       @default(0) @map("rating_count")
+
+  zones DeliveryPartnerZone[]
+  jobs  DeliveryJob[]
+
+  @@index([cityId, isAvailable])
+  @@map("delivery_partners")
+}
+
+model DeliveryPartnerZone {
+  id                String @id @default(uuid()) @db.Uuid
+  deliveryPartnerId String @map("delivery_partner_id") @db.Uuid
+  localityId        String @map("locality_id") @db.Uuid
+
+  partner DeliveryPartner @relation(fields: [deliveryPartnerId], references: [id])
+
+  @@map("delivery_partner_zones")
+}
+
+model DeliveryJob {
+  id                String    @id @default(uuid()) @db.Uuid
+  sellerOrderId     String    @map("seller_order_id") @db.Uuid
+  type              String    @default("FORWARD") @db.VarChar(13) // FORWARD|RETURN_PICKUP
+  mode              String    @db.VarChar(14) // PLATFORM_RIDER|SELLER_SELF
+  status            String    @default("UNASSIGNED") @db.VarChar(18) // UNASSIGNED|ASSIGNED|ACCEPTED|RIDER_REJECTED|AT_PICKUP|PICKED_UP|IN_TRANSIT|AT_DROP|DELIVERED|FAILED|RETURNED_TO_SELLER|CANCELLED
+  deliveryPartnerId String?   @map("delivery_partner_id") @db.Uuid
+  pickupLocation    Unsupported("geometry(Point, 4326)")? @map("pickup_location")
+  dropLocation      Unsupported("geometry(Point, 4326)")? @map("drop_location")
+  distanceM         Int?      @map("distance_m")
+  feePaise          BigInt?   @map("fee_paise")
+  etaMinutes        Int?      @map("eta_minutes")
+  otpHash           String?   @map("otp_hash")
+  otpAttempts       Int       @default(0) @map("otp_attempts")
+  assignmentReason  Json?     @map("assignment_reason")
+  assignedAt        DateTime? @map("assigned_at") @db.Timestamptz(3)
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(3)
+  pickedUpAt        DateTime? @map("picked_up_at") @db.Timestamptz(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz(3)
+  failedReason      String?   @map("failed_reason")
+  failedCount       Int       @default(0) @map("failed_count")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  partner  DeliveryPartner? @relation(fields: [deliveryPartnerId], references: [id])
+  tracking TrackingEvent[]
+  pod      ProofOfDelivery[]
+
+  @@index([status])
+  @@index([sellerOrderId])
+  @@map("delivery_jobs")
+}
+
+model TrackingEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  deliveryJobId     String   @map("delivery_job_id") @db.Uuid
+  deliveryPartnerId String?  @map("delivery_partner_id") @db.Uuid
+  event             String   @db.VarChar(14) // ASSIGNED|ACCEPTED|REJECTED|AT_PICKUP|PICKED_UP|IN_TRANSIT_PING|AT_DROP|OTP_VERIFIED|POD_UPLOADED|DELIVERED|FAILED
+  location          Unsupported("geometry(Point, 4326)")?
+  payload           Json?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job DeliveryJob @relation(fields: [deliveryJobId], references: [id])
+
+  @@index([deliveryJobId])
+  @@map("tracking_events")
+}
+
+model ProofOfDelivery {
+  id                 String  @id @default(uuid()) @db.Uuid
+  deliveryJobId      String  @map("delivery_job_id") @db.Uuid
+  mediaId            String? @map("media_id") @db.Uuid
+  otpVerified        Boolean? @map("otp_verified")
+  signatureMediaId   String? @map("signature_media_id") @db.Uuid
+  signedByName       String? @map("signed_by_name")
+  deliveredToRelation String? @map("delivered_to_relation")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job DeliveryJob @relation(fields: [deliveryJobId], references: [id])
+
+  @@map("proof_of_delivery")
+}

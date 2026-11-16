@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Steps 11–12 (purchase + OMS) DONE** | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Steps 11–13 (purchase + OMS + delivery) DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -155,8 +155,8 @@ Every module card below expands into the same seven steps — do them in order:
 | 18 | M14 orders | 11–12 | ✅ | full transition matrix; 10-min auto-reject; partial cancel |
 | 19 | M13 checkout | 11 | ✅ | 3-shop split; idempotent replay; per-item 422; quote expiry |
 | 20 | M20 promotions | 11 | ◑ | scope/window/limit stacking; free-delivery one shop group |
-| 21 | M17 delivery | 13 | ⏳ | scoring order; OTP fail path; reverse-logistics job |
-| 22 | M18 delivery-partners | 13 | ⏳ | offline 5 min→unavailable; weekly earnings aggregation |
+| 21 | M17 delivery | 13 | ✅ | scoring order; OTP fail path; reverse-logistics job |
+| 22 | M18 delivery-partners | 13 | ✅ | offline 5 min→unavailable; weekly earnings aggregation |
 | 23 | M19 returns | 14 | ⏳ | window expiry; auto-approve gate; inspection-failed freeze |
 | 24 | M22 notifications | 14 | ⏳ | **SMS w/o DLT id fails closed**; <5 s p95; opt-out suppress |
 | 25 | M23 support | 14 | ⏳ | SLA timers; dispute freezes refund |
@@ -312,13 +312,21 @@ Accept: 3-shop split totals; idempotent replay; 422 flow; quote expiry.
 **M20 promotions** — Prereq M13 · Tables `coupons,coupon_redemptions,campaigns` · Port `PromotionsPort` validate(cart,code)→discount lines+redemption ·
 Accept: scope/window/limit stacking; free-delivery one shop group.
 
-**M17 delivery** — Prereq M14,M03,M18 · Tables `delivery_jobs,tracking_events,proof_of_delivery,shipment_links` ·
-Port `DeliveryPort` serviceable+fee+ETA/createJob/assign(scoring)/transitionStatus/otpVerify/pod/track ·
-Events out `delivery.assigned/delivered/failed.v1` · Rules score=distance×workload×vehicle×rating, 60 s offer, retry×2→return-to-seller ·
+**M17 delivery** ✅ DONE (Step 13) — Prereq M14,M03,M18 · Tables `delivery_jobs,tracking_events,proof_of_delivery` ·
+Port `DeliveryPort` createJob/assign(scoring)/accept/reject/status/issueOtp/verifyOtp/fail/tracking ·
+Events out `delivery.delivered/failed.v1` · Rules score=0.4/dist+0.3/(1+jobs)+0.2·rating+0.1·fit, 60 s offer, retry×2→return-to-seller ·
 Accept: scoring order; OTP fail; reverse-logistics job.
+*Pure core (eligibility, scoring formula, 4-digit OTP hash/verify w/ 3-attempt lock, fee/ETA) +
+DeliveryService (create job w/ PostGIS pickup/drop, assign best→60-s offer + auditable reason,
+reject→re-offer next, OTP verify→DELIVERED+PoD+delivery.delivered.v1, failed×2→RETURNED_TO_SELLER
+reverse job). Tests 9 core + 4 integration (scoring order, re-offer, OTP path, reverse job).*
 
-**M18 delivery-partners** — Prereq M01,M24,M16 · Tables `delivery_partners,delivery_partner_zones` ·
-Port `RidersPort` register/availability/ping/jobs/earnings · Accept: offline 5 min→unavailable; weekly earnings.
+**M18 delivery-partners** ✅ DONE (Step 13) — Prereq M01,(M24 KYC),(M16 earnings) · Tables `delivery_partners,delivery_partner_zones` ·
+Port `RidersPort` register/availability/ping(PostGIS)/earnings · Accept: offline 5 min→unavailable; weekly earnings.
+*RidersService: register, availability, location ping (ST_MakePoint), sweepOffline (>5 min stale →
+unavailable), earnings (sum delivered job fees since date). Tested via integration (offline sweep).
+**Remaining:** rider KYC approval via M24; earnings → M16 ledger payout (Step 15); offer-timeout +
+offline sweeps need CronJobs (ops); customer live-tracking endpoint + rider app offline queue.*
 
 **M19 returns** — Prereq M17,M15,M23 · Tables `return_requests` · Port `ReturnsPort` request/approve/reject/inspection ·
 Events out `return.approved.v1`→M17 job+M16 refund · Accept: window expiry; auto-approve gate; inspection-failed freeze.
@@ -350,11 +358,10 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–12 (purchase + OMS)
-> built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06 M10 M07
-> M08 M09 M12 M13 M15 **M14** (+M20 partial) = **19/32**. Full order lifecycle works:
-> place → seller accept/reject → prepare → dispatch (consumes stock) → deliver → close;
-> 10-min auto-reject + refund + stock release; parent PARTIALLY_CANCELLED/COMPLETED derivation.
-> **Steps 11–12 code not yet deployed to cluster** (needs rebuild + rollout). Next = **Step 13
-> delivery+riders (M17/M18)** OR **Step 10 search** OR deploy 11–12. **Step 3 (CI) pending.**
-> Cashfree keys still needed (mock provider in place). Timer sweeps need CronJobs (ops).
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–13 (purchase + OMS +
+> delivery) built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06
+> M10 M07 M08 M09 M12 M13 M15 M14 **M17 M18** (+M20 partial) = **21/32**. End-to-end lifecycle:
+> browse → cart → place → seller fulfils → rider assigned (scored, 60-s offer) → OTP delivery
+> → reverse logistics on failure. **Steps 11–13 not yet deployed to cluster** (needs rebuild +
+> rollout). Next = **Step 14 notifications+returns+support (M22/M19/M23)** OR **Step 10 search**
+> OR deploy 11–13. **Step 3 (CI) pending.** Cashfree keys needed; timer/offline sweeps need CronJobs.
