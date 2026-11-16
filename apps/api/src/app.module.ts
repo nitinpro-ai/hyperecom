@@ -17,10 +17,13 @@ import { CheckoutModule } from "./checkout/checkout.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { OrdersModule } from "./orders/orders.module";
 import { DeliveryModule } from "./delivery/delivery.module";
+import { NotificationsModule } from "./notifications/notifications.module";
+import { ReturnsModule } from "./returns/returns.module";
+import { SupportModule } from "./support/support.module";
 
 /**
- * Root module. Steps 4–8 + 11–13: …· Cart · Checkout · Payments · Orders (OMS)
- * · Delivery (M17/M18). Cross-module access only via ports/events (D-015).
+ * Root module. Steps 4–8 + 11–14: …· Orders (OMS) · Delivery · Notifications ·
+ * Returns · Support. Cross-module access only via ports/events (D-015).
  */
 @Module({
   imports: [
@@ -42,6 +45,9 @@ import { DeliveryModule } from "./delivery/delivery.module";
     PaymentsModule,
     OrdersModule,
     DeliveryModule,
+    NotificationsModule,
+    ReturnsModule,
+    SupportModule,
   ],
 })
 export class AppModule {}

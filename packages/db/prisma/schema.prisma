@@ -997,3 +997,105 @@ model ProofOfDelivery {
 
   @@map("proof_of_delivery")
 }
+
+// ---------------------------------------------------------------------------
+// M19 Returns · M22 Notifications · M23 Support (Step 14).
+// ---------------------------------------------------------------------------
+
+model ReturnRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  sellerOrderId   String    @map("seller_order_id") @db.Uuid
+  orderItemId     String    @map("order_item_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  reason          String    @db.VarChar(15) // DAMAGED|WRONG_ITEM|NOT_AS_DESCRIBED|SIZE_ISSUE|CHANGED_MIND|LATE_DELIVERY|OTHER
+  comments        String?
+  mediaIds        String[]  @default([]) @map("media_ids") @db.Uuid
+  status          String    @default("REQUESTED") @db.VarChar(17) // REQUESTED|APPROVED|REJECTED|PICKUP_SCHEDULED|PICKED_UP|RECEIVED|INSPECTION_PASSED|INSPECTION_FAILED|REFUND_INITIATED|COMPLETED|CANCELLED
+  refundMethod    String?   @map("refund_method") @db.VarChar(6) // ORIGINAL|UPI
+  upiId           String?   @map("upi_id")
+  requestedAt     DateTime? @map("requested_at") @db.Timestamptz(3)
+  windowExpiresAt DateTime? @map("window_expires_at") @db.Timestamptz(3)
+  refundId        String?   @map("refund_id") @db.Uuid
+  resolutionNote  String?   @map("resolution_note")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@index([sellerOrderId])
+  @@map("return_requests")
+}
+
+model NotificationTemplate {
+  id                   String  @id @default(uuid()) @db.Uuid
+  code                 String  // e.g. ORDER_NEW_SELLER
+  channel              String  @db.VarChar(8) // SMS|WHATSAPP|PUSH|EMAIL|INAPP
+  locale               String  @default("EN") @db.VarChar(2) // EN|HI
+  bodyTemplate         String  @map("body_template")
+  dltTemplateId        String? @map("dlt_template_id") // MANDATORY for SMS
+  whatsappTemplateName String? @map("whatsapp_template_name")
+  variables            Json?
+  isActive             Boolean @default(true) @map("is_active")
+
+  @@unique([code, channel, locale])
+  @@map("notification_templates")
+}
+
+model Notification {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  templateCode String    @map("template_code")
+  channel      String    @db.VarChar(8)
+  payload      Json?
+  status       String    @default("QUEUED") @db.VarChar(10) // QUEUED|SENT|FAILED|SUPPRESSED
+  sentAt       DateTime? @map("sent_at") @db.Timestamptz(3)
+  error        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  userId   String  @map("user_id") @db.Uuid
+  channel  String  @db.VarChar(8)
+  topic    String  @db.VarChar(8) // ORDERS|PROMOS|ACCOUNT
+  optedIn  Boolean @map("opted_in")
+
+  @@id([userId, channel, topic])
+  @@map("notification_preferences")
+}
+
+model SupportTicket {
+  id             String    @id @default(uuid()) @db.Uuid
+  ticketNo       String    @unique @map("ticket_no")
+  openedByUserId String    @map("opened_by_user_id") @db.Uuid
+  type           String    @db.VarChar(17) // CUSTOMER_COMPLAINT|SELLER_ISSUE|REFUND_ESCALATION|RETURN_DISPUTE|DELIVERY_ISSUE|OTHER
+  orderId        String?   @map("order_id") @db.Uuid
+  sellerOrderId  String?   @map("seller_order_id") @db.Uuid
+  subject        String
+  description    String?
+  priority       String    @default("MEDIUM") @db.VarChar(7) // LOW|MEDIUM|HIGH|URGENT
+  status         String    @default("OPEN") @db.VarChar(18) // OPEN|IN_PROGRESS|AWAITING_CUSTOMER|RESOLVED|CLOSED|ESCALATED
+  assignedTo     String?   @map("assigned_to") @db.Uuid
+  slaDueAt       DateTime? @map("sla_due_at") @db.Timestamptz(3)
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  messages TicketMessage[]
+
+  @@index([openedByUserId])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  senderType String   @map("sender_type") @db.VarChar(8) // CUSTOMER|SELLER|AGENT|SYSTEM
+  senderId   String?  @map("sender_id") @db.Uuid
+  body       String?
+  mediaIds   String[] @default([]) @map("media_ids") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@map("ticket_messages")
+}

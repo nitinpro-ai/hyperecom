@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Steps 11–13 (purchase + OMS + delivery) DONE** | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Steps 11–14 (purchase→OMS→delivery→notify/returns/support) DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -157,9 +157,9 @@ Every module card below expands into the same seven steps — do them in order:
 | 20 | M20 promotions | 11 | ◑ | scope/window/limit stacking; free-delivery one shop group |
 | 21 | M17 delivery | 13 | ✅ | scoring order; OTP fail path; reverse-logistics job |
 | 22 | M18 delivery-partners | 13 | ✅ | offline 5 min→unavailable; weekly earnings aggregation |
-| 23 | M19 returns | 14 | ⏳ | window expiry; auto-approve gate; inspection-failed freeze |
-| 24 | M22 notifications | 14 | ⏳ | **SMS w/o DLT id fails closed**; <5 s p95; opt-out suppress |
-| 25 | M23 support | 14 | ⏳ | SLA timers; dispute freezes refund |
+| 23 | M19 returns | 14 | ✅ | window expiry; auto-approve gate; inspection-failed freeze |
+| 24 | M22 notifications | 14 | ✅ | **SMS w/o DLT id fails closed**; <5 s p95; opt-out suppress |
+| 25 | M23 support | 14 | ✅ | SLA timers; dispute freezes refund |
 | 26 | M24 admin | 16 | ⏳ | every action audited; approval queue SLA; commission audit |
 | 27 | M16 finance | 15 | ⏳ | worked example exact; **ledger == gateway to the paisa** |
 | 28 | M31 invoicing | 15 | ⏳ | invoice per child order; series numbering; credit note |
@@ -328,14 +328,14 @@ unavailable), earnings (sum delivered job fees since date). Tested via integrati
 **Remaining:** rider KYC approval via M24; earnings → M16 ledger payout (Step 15); offer-timeout +
 offline sweeps need CronJobs (ops); customer live-tracking endpoint + rider app offline queue.*
 
-**M19 returns** — Prereq M17,M15,M23 · Tables `return_requests` · Port `ReturnsPort` request/approve/reject/inspection ·
+**M19 returns** ✅ DONE (Step 14) — Prereq M17,M15,M23 · Tables `return_requests` · Port `ReturnsPort` request/approve/reject/inspection ·
 Events out `return.approved.v1`→M17 job+M16 refund · Accept: window expiry; auto-approve gate; inspection-failed freeze.
 
-**M22 notifications** — Prereq M27,channel ports(DLT/FCM/WhatsApp/email) · Tables `notification_templates,notifications,notification_preferences` ·
+**M22 notifications** ✅ DONE (Step 14) — Prereq M27,channel ports(DLT/FCM/WhatsApp/email) · Tables `notification_templates,notifications,notification_preferences` ·
 Port `NotifyPort` send(templateCode,recipient,vars)/preferences · Events in all order/payment/delivery/settlement ·
 Rules **DLT template id mandatory for SMS (fail-closed)**, fallback chain, quiet hours · Accept: fail-closed; <5 s p95; opt-out.
 
-**M23 support** — Prereq M14 · Tables `support_tickets,ticket_messages` · Port `SupportPort` open/reply/escalate/resolve + dispute freeze into M15/M19 ·
+**M23 support** ✅ DONE (Step 14) — Prereq M14 · Tables `support_tickets,ticket_messages` · Port `SupportPort` open/reply/escalate/resolve + dispute freeze into M15/M19 ·
 Accept: SLA timers; dispute freezes refund.
 
 **M24 admin** — Prereq M04/M05/M18 approvals,M26 · Provides admin ops APIs + two-person payout rule (with M16) ·
@@ -358,10 +358,12 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–13 (purchase + OMS +
-> delivery) built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06
-> M10 M07 M08 M09 M12 M13 M15 M14 **M17 M18** (+M20 partial) = **21/32**. End-to-end lifecycle:
-> browse → cart → place → seller fulfils → rider assigned (scored, 60-s offer) → OTP delivery
-> → reverse logistics on failure. **Steps 11–13 not yet deployed to cluster** (needs rebuild +
-> rollout). Next = **Step 14 notifications+returns+support (M22/M19/M23)** OR **Step 10 search**
-> OR deploy 11–13. **Step 3 (CI) pending.** Cashfree keys needed; timer/offline sweeps need CronJobs.
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–14 built & gate-green
+> (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06 M10 M07 M08 M09 M12 M13 M15
+> M14 M17 M18 **M19 M22 M23** (+M20 partial) = **24/32**. Full post-purchase: notifications
+> (fail-closed SMS/opt-out/quiet-hours), returns (window + auto-approve + inspection→refund/
+> dispute + restock), support (SLA + dispute-freeze). **Steps 11–14 not yet deployed to cluster.**
+> Next = **Step 15 ledger+settlement+invoicing (M16/M31)** OR **Step 10 search** OR **M21
+> reviews** OR deploy 11–14. Remaining: M24 admin, M25 analytics, M28 webhooks, M32 content.
+> **Step 3 (CI) pending.** Cashfree keys needed; timer/offline/SLA sweeps need CronJobs; event
+> orchestration (READY→delivery job, delivered→OMS close, return.approved→reverse job) still manual.
