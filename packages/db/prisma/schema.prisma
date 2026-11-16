@@ -748,7 +748,7 @@ model Order {
   taxTotalPaise      BigInt    @map("tax_total_paise")
   grandTotalPaise    BigInt    @map("grand_total_paise")
   currency           String    @default("INR") @db.Char(3)
-  status             String    @default("PENDING_PAYMENT") @db.VarChar(18) // PENDING_PAYMENT|PLACED|PARTIALLY_CANCELLED|COMPLETED|CANCELLED
+  status             String    @default("PENDING_PAYMENT") @db.VarChar(20) // PENDING_PAYMENT|PLACED|PARTIALLY_CANCELLED|COMPLETED|CANCELLED
   paymentId          String?   @map("payment_id") @db.Uuid
   placedAt           DateTime? @map("placed_at") @db.Timestamptz(3)
   completedAt        DateTime? @map("completed_at") @db.Timestamptz(3)

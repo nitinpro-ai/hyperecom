@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Step 11 purchase flow DONE** | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Steps 11–12 (purchase + OMS) DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -152,7 +152,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 15 | M11 search | 10 | ⏳ | golden set; typo tolerance; p95 <300 ms @50k |
 | 16 | M12 cart | 11 | ✅ | anon→user merge; drift detection; ≤50 items cap |
 | 17 | M15 payments | 11 | ✅ | replay ignored; bad signature 400; partial-refund math |
-| 18 | M14 orders | 11–12 | ◑ | full transition matrix; 10-min auto-reject; partial cancel |
+| 18 | M14 orders | 11–12 | ✅ | full transition matrix; 10-min auto-reject; partial cancel |
 | 19 | M13 checkout | 11 | ✅ | 3-shop split; idempotent replay; per-item 422; quote expiry |
 | 20 | M20 promotions | 11 | ◑ | scope/window/limit stacking; free-delivery one shop group |
 | 21 | M17 delivery | 13 | ⏳ | scoring order; OTP fail path; reverse-logistics job |
@@ -295,9 +295,15 @@ Rules drift surfaced on read, ≤50 items, one open cart/user · Accept: anon→
 Port `PaymentsPort` createIntent/handleWebhook/refund · Events out `payment.captured.v1,refund.completed.v1` ·
 Rules webhook=only capture authority, signature+timestamp+replay, COD recon · Accept: replay ignored; bad sig 400; partial refund math.
 
-**M14 orders** — Prereq M09,M15,M17,M27 · Tables `orders,seller_orders,order_items,order_events` ·
-Port `OrdersPort` create(snapshots)/transition(state machine)/timeline/cancel · Events out `order.placed/child.*/cancelled.v1` ·
-Rules transitions per 06§1–2, timers 06§8, snapshots immutable · Accept: full matrix; timeout auto-reject; partial-cancel; event history.
+**M14 orders** ✅ DONE (Step 12) — Prereq M09,M15,M27 · Tables `orders,seller_orders,order_items,order_events` ·
+Port `OrdersPort` transition(state machine)/cancelOrder/sweepTimeouts · Events out `order.placed/child.*.v1` ·
+Rules transitions validated (role×from→to else 409), timers 10-min accept, snapshots immutable · Accept: full matrix; timeout auto-reject; partial-cancel; event history.
+*Pure state machine (orders.core: child + parent transitions, stock-release/consume/refund flags) +
+OrdersService (one-tx transition: event row + stock release/consume via atomic UPDATE + refund row +
+re-derive parent). Tests 11 core + 5 integration (accept→dispatch consumes stock; reject releases +
+refund + PARTIALLY_CANCELLED; 10-min timeout sweep; illegal/forbidden → 409). Fixed spec bug:
+orders.status varchar(18)→(20) ('PARTIALLY_CANCELLED' is 19 chars). **Remaining:** delivery/return
+transitions wire to M17/M19 (Steps 13–14); timer sweep needs a CronJob (ops).*
 
 **M13 checkout** — Prereq M12,M03,M20,M15,M09,M14 · Tables: none (orchestrates) ·
 Port `CheckoutPort` quote(TTL10m)/place(Idempotency-Key)→orderId · Rules single-transaction place (order+children+items+reservations+outbox+payment), stock short→422, COD gates ·
@@ -344,11 +350,11 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed to cluster + Step 11 (purchase
-> flow) built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06
-> M10 M07 M08 M09 **M12 M13 M15** (+M14/M20 partial) = **18/32**. The buy loop works:
-> cart → quote → place (atomic 3-shop split, per-item 422, no-oversell) → mock payment
-> webhook capture (replay-guarded). **Step 11 code not yet deployed to cluster** (needs
-> image rebuild + rollout). Next = **complete M14 OMS state machine (Step 12: accept/
-> reject/10-min auto-reject, cancel+refund)** OR **Step 10 search** OR deploy Step 11.
-> **Step 3 (CI) still pending.** Cashfree sandbox keys still needed (mock provider in place).
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–12 (purchase + OMS)
+> built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06 M10 M07
+> M08 M09 M12 M13 M15 **M14** (+M20 partial) = **19/32**. Full order lifecycle works:
+> place → seller accept/reject → prepare → dispatch (consumes stock) → deliver → close;
+> 10-min auto-reject + refund + stock release; parent PARTIALLY_CANCELLED/COMPLETED derivation.
+> **Steps 11–12 code not yet deployed to cluster** (needs rebuild + rollout). Next = **Step 13
+> delivery+riders (M17/M18)** OR **Step 10 search** OR deploy 11–12. **Step 3 (CI) pending.**
+> Cashfree keys still needed (mock provider in place). Timer sweeps need CronJobs (ops).

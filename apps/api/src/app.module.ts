@@ -15,11 +15,12 @@ import { InventoryModule } from "./inventory/inventory.module";
 import { CartModule } from "./cart/cart.module";
 import { CheckoutModule } from "./checkout/checkout.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { OrdersModule } from "./orders/orders.module";
 
 /**
- * Root module. Steps 4–8 + 11: Auth · Users · RBAC · Sellers · Shops · Media ·
- * Catalog · Listings · Inventory · Cart · Checkout · Payments. Cross-module
- * access only via ports/events (D-015).
+ * Root module. Steps 4–8 + 11–12: Auth · Users · RBAC · Sellers · Shops · Media ·
+ * Catalog · Listings · Inventory · Cart · Checkout · Payments · Orders (OMS).
+ * Cross-module access only via ports/events (D-015).
  */
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { PaymentsModule } from "./payments/payments.module";
     CartModule,
     CheckoutModule,
     PaymentsModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}
