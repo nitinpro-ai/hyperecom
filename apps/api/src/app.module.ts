@@ -12,11 +12,14 @@ import { MediaModule } from "./media/media.module";
 import { CatalogModule } from "./catalog/catalog.module";
 import { ListingsModule } from "./listings/listings.module";
 import { InventoryModule } from "./inventory/inventory.module";
+import { CartModule } from "./cart/cart.module";
+import { CheckoutModule } from "./checkout/checkout.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 /**
- * Root module. Steps 4–8: Auth · Users · RBAC · Sellers · Shops · Media ·
- * Catalog · Listings · Inventory. One module per folder; cross-module access
- * only via ports/events (D-015).
+ * Root module. Steps 4–8 + 11: Auth · Users · RBAC · Sellers · Shops · Media ·
+ * Catalog · Listings · Inventory · Cart · Checkout · Payments. Cross-module
+ * access only via ports/events (D-015).
  */
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { InventoryModule } from "./inventory/inventory.module";
     CatalogModule,
     ListingsModule,
     InventoryModule,
+    CartModule,
+    CheckoutModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

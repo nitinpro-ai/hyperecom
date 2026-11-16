@@ -664,3 +664,238 @@ model StockReservation {
   @@index([status, expiresAt])
   @@map("stock_reservations")
 }
+
+// ---------------------------------------------------------------------------
+// Step 11 — Cart (M12) · Orders (M14) · Payments (M15) · Promotions (M20).
+// Money = integer paise, UTC, snapshots immutable (conventions §5).
+// ---------------------------------------------------------------------------
+
+model Cart {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  cityId     String   @map("city_id") @db.Uuid
+  status     String   @default("OPEN") @db.VarChar(8) // OPEN|ORDERED|ABANDONED
+  couponCode String?  @map("coupon_code")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  items CartItem[]
+
+  // one open cart per user — partial unique index added in SQL migration
+  @@index([userId, status])
+  @@map("carts")
+}
+
+model CartItem {
+  id               String @id @default(uuid()) @db.Uuid
+  cartId           String @map("cart_id") @db.Uuid
+  listingVariantId String @map("listing_variant_id") @db.Uuid
+  listingId        String @map("listing_id") @db.Uuid
+  shopId           String @map("shop_id") @db.Uuid
+  quantity         Int
+  addedPricePaise  BigInt @map("added_price_paise") // snapshot; revalidated on read
+
+  cart Cart @relation(fields: [cartId], references: [id])
+
+  @@unique([cartId, listingVariantId])
+  @@map("cart_items")
+}
+
+model Coupon {
+  id              String    @id @default(uuid()) @db.Uuid
+  scope           String    @db.VarChar(8) // PLATFORM|CITY|SHOP
+  cityId          String?   @map("city_id") @db.Uuid
+  shopId          String?   @map("shop_id") @db.Uuid
+  code            String
+  type            String    @db.VarChar(13) // PERCENT|FLAT|FREE_DELIVERY
+  valueBp         Int?      @map("value_bp")
+  valuePaise      BigInt?   @map("value_paise")
+  minOrderPaise   BigInt    @default(0) @map("min_order_paise")
+  maxDiscountPaise BigInt?  @map("max_discount_paise")
+  usageLimit      Int?      @map("usage_limit")
+  perUserLimit    Int       @default(1) @map("per_user_limit")
+  validFrom       DateTime? @map("valid_from") @db.Timestamptz(3)
+  validTo         DateTime? @map("valid_to") @db.Timestamptz(3)
+  isActive        Boolean   @default(true) @map("is_active")
+
+  redemptions CouponRedemption[]
+
+  @@index([code])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id            String @id @default(uuid()) @db.Uuid
+  couponId      String @map("coupon_id") @db.Uuid
+  userId        String @map("user_id") @db.Uuid
+  orderId       String @map("order_id") @db.Uuid
+  discountPaise BigInt @map("discount_paise")
+
+  coupon Coupon @relation(fields: [couponId], references: [id])
+
+  @@index([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+model Order {
+  id                 String    @id @default(uuid()) @db.Uuid
+  orderNo            String    @unique @map("order_no")
+  userId             String    @map("user_id") @db.Uuid
+  cityId             String    @map("city_id") @db.Uuid
+  addressSnapshot    Json      @map("address_snapshot")
+  itemsTotalPaise    BigInt    @map("items_total_paise")
+  deliveryTotalPaise BigInt    @map("delivery_total_paise")
+  discountPaise      BigInt    @default(0) @map("discount_paise")
+  taxTotalPaise      BigInt    @map("tax_total_paise")
+  grandTotalPaise    BigInt    @map("grand_total_paise")
+  currency           String    @default("INR") @db.Char(3)
+  status             String    @default("PENDING_PAYMENT") @db.VarChar(18) // PENDING_PAYMENT|PLACED|PARTIALLY_CANCELLED|COMPLETED|CANCELLED
+  paymentId          String?   @map("payment_id") @db.Uuid
+  placedAt           DateTime? @map("placed_at") @db.Timestamptz(3)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(3)
+  cancelledAt        DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cancellationReason String?   @map("cancellation_reason")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sellerOrders SellerOrder[]
+  items        OrderItem[]
+  payments     Payment[]
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model SellerOrder {
+  id                String    @id @default(uuid()) @db.Uuid // tenant
+  orderId           String    @map("order_id") @db.Uuid
+  shopId            String    @map("shop_id") @db.Uuid
+  sellerOrderNo     String    @map("seller_order_no")
+  itemsTotalPaise   BigInt    @map("items_total_paise")
+  deliveryFeePaise  BigInt    @map("delivery_fee_paise")
+  taxTotalPaise     BigInt    @map("tax_total_paise")
+  commissionPaise   BigInt    @default(0) @map("commission_paise")
+  sellerNetPaise    BigInt    @default(0) @map("seller_net_paise")
+  status            String    @default("NEW") @db.VarChar(17) // NEW|ACCEPTED|REJECTED|PREPARING|READY|DISPATCHED|OUT_FOR_DELIVERY|DELIVERED|CLOSED|CANCELLED|RETURN_REQUESTED|RETURNED
+  acceptDeadlineAt  DateTime? @map("accept_deadline_at") @db.Timestamptz(3)
+  acceptedAt        DateTime? @map("accepted_at") @db.Timestamptz(3)
+  rejectedReason    String?   @map("rejected_reason")
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz(3)
+  closedAt          DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  order Order       @relation(fields: [orderId], references: [id])
+  items OrderItem[]
+
+  @@unique([shopId, sellerOrderNo])
+  @@index([shopId, status])
+  @@map("seller_orders")
+}
+
+model OrderItem {
+  id               String  @id @default(uuid()) @db.Uuid
+  sellerOrderId    String  @map("seller_order_id") @db.Uuid
+  orderId          String  @map("order_id") @db.Uuid
+  listingVariantId String? @map("listing_variant_id") @db.Uuid
+  productId        String? @map("product_id") @db.Uuid
+  variantId        String? @map("variant_id") @db.Uuid
+  quantity         Int
+  unitPricePaise   BigInt  @map("unit_price_paise")
+  mrpPaise         BigInt? @map("mrp_paise")
+  taxRateBp        Int?    @map("tax_rate_bp")
+  taxAmountPaise   BigInt? @map("tax_amount_paise")
+  lineTotalPaise   BigInt  @map("line_total_paise")
+  nameSnapshot     String  @map("name_snapshot")
+  skuSnapshot      String  @map("sku_snapshot")
+  imageMediaId     String? @map("image_media_id") @db.Uuid
+  weightGrams      Int?    @map("weight_grams")
+  status           String  @default("NORMAL") @db.VarChar(9) // NORMAL|CANCELLED|RETURNED|EXCHANGED
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id])
+  order       Order       @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id            String   @id @default(uuid()) @db.Uuid // append-only
+  orderId       String?  @map("order_id") @db.Uuid
+  sellerOrderId String?  @map("seller_order_id") @db.Uuid
+  orderItemId   String?  @map("order_item_id") @db.Uuid
+  event         String   @db.VarChar(24)
+  fromStatus    String?  @map("from_status")
+  toStatus      String?  @map("to_status")
+  actorType     String   @map("actor_type") @db.VarChar(8) // CUSTOMER|SELLER|RIDER|ADMIN|SYSTEM
+  actorId       String?  @map("actor_id") @db.Uuid
+  payload       Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@map("order_events")
+}
+
+model Payment {
+  id              String    @id @default(uuid()) @db.Uuid
+  orderId         String    @map("order_id") @db.Uuid
+  provider        String    @db.VarChar(8) // CASHFREE|RAZORPAY|COD
+  providerOrderRef String?  @map("provider_order_ref")
+  amountPaise     BigInt    @map("amount_paise")
+  currency        String    @default("INR") @db.Char(3)
+  method          String?   @db.VarChar(10) // UPI|CARD|NETBANKING|WALLET|COD
+  status          String    @default("CREATED") @db.VarChar(16) // CREATED|AUTHORIZED|CAPTURED|FAILED|REFUNDED|PARTIALLY_REFUNDED
+  capturedAt      DateTime? @map("captured_at") @db.Timestamptz(3)
+  idempotencyKey  String?   @unique @map("idempotency_key")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order        Order                @relation(fields: [orderId], references: [id])
+  transactions PaymentTransaction[]
+  refunds      Refund[]
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+model PaymentTransaction {
+  id               String  @id @default(uuid()) @db.Uuid
+  paymentId        String  @map("payment_id") @db.Uuid
+  providerTxnRef   String? @map("provider_txn_ref")
+  type             String? @db.VarChar(7) // CREATE|CAPTURE|REFUND|STATUS
+  status           String?
+  amountPaise      BigInt? @map("amount_paise")
+  rawPayload       Json?   @map("raw_payload")
+  signatureVerified Boolean? @map("signature_verified")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@map("payment_transactions")
+}
+
+model Refund {
+  id            String    @id @default(uuid()) @db.Uuid
+  paymentId     String    @map("payment_id") @db.Uuid
+  sellerOrderId String?   @map("seller_order_id") @db.Uuid
+  orderItemId   String?   @map("order_item_id") @db.Uuid
+  amountPaise   BigInt    @map("amount_paise")
+  reason        String?
+  status        String    @default("REQUESTED") @db.VarChar(10) // REQUESTED|APPROVED|INITIATED|COMPLETED|FAILED
+  providerRef   String?   @map("provider_ref")
+  initiatedBy   String?   @map("initiated_by") @db.Uuid
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@map("refunds")
+}
+
+model WebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String    @db.VarChar(20)
+  eventType       String    @map("event_type")
+  externalRef     String    @map("external_ref")
+  signatureValid  Boolean?  @map("signature_valid")
+  rawPayload      Json?     @map("raw_payload")
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz(3)
+  processingError String?   @map("processing_error")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([provider, eventType, externalRef]) // replay guard
+  @@map("webhook_events")
+}

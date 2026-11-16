@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE** | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE · Step 11 purchase flow DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -150,11 +150,11 @@ Every module card below expands into the same seven steps — do them in order:
 | 13 | M08 listings | 7 | ✅ | publish validation matrix; price history; offers query |
 | 14 | M09 inventory | 8 | ✅ | **100 parallel on stock=10 → exactly 10**; TTL; recon |
 | 15 | M11 search | 10 | ⏳ | golden set; typo tolerance; p95 <300 ms @50k |
-| 16 | M12 cart | 11 | ⏳ | anon→user merge; drift detection; ≤50 items cap |
-| 17 | M15 payments | 11 | ⏳ | replay ignored; bad signature 400; partial-refund math |
-| 18 | M14 orders | 11–12 | ⏳ | full transition matrix; 10-min auto-reject; partial cancel |
-| 19 | M13 checkout | 11 | ⏳ | 3-shop split; idempotent replay; per-item 422; quote expiry |
-| 20 | M20 promotions | 11 | ⏳ | scope/window/limit stacking; free-delivery one shop group |
+| 16 | M12 cart | 11 | ✅ | anon→user merge; drift detection; ≤50 items cap |
+| 17 | M15 payments | 11 | ✅ | replay ignored; bad signature 400; partial-refund math |
+| 18 | M14 orders | 11–12 | ◑ | full transition matrix; 10-min auto-reject; partial cancel |
+| 19 | M13 checkout | 11 | ✅ | 3-shop split; idempotent replay; per-item 422; quote expiry |
+| 20 | M20 promotions | 11 | ◑ | scope/window/limit stacking; free-delivery one shop group |
 | 21 | M17 delivery | 13 | ⏳ | scoring order; OTP fail path; reverse-logistics job |
 | 22 | M18 delivery-partners | 13 | ⏳ | offline 5 min→unavailable; weekly earnings aggregation |
 | 23 | M19 returns | 14 | ⏳ | window expiry; auto-approve gate; inspection-failed freeze |
@@ -344,9 +344,11 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 complete AND DEPLOYED to the cluster
-> (2026-11-16).** Live: API serves auth/catalog/listings/inventory/media; web renders the
-> real 3-shop offers table (demo seed `infrastructure/seed-demo.ts`). Added **boot test**
-> (`app.boot.spec.ts`) to catch DI errors pre-deploy. Built: M27 M26 M03 M30 M29 M01 M02
-> M04 M05 M06 M10 M07 M08 M09 (**15/32**). Next = **Step 10 M11 search** OR **Step 11
-> cart+checkout+payments** (MVP purchase). **Step 3 (CI) still pending.**
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed to cluster + Step 11 (purchase
+> flow) built & gate-green (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06
+> M10 M07 M08 M09 **M12 M13 M15** (+M14/M20 partial) = **18/32**. The buy loop works:
+> cart → quote → place (atomic 3-shop split, per-item 422, no-oversell) → mock payment
+> webhook capture (replay-guarded). **Step 11 code not yet deployed to cluster** (needs
+> image rebuild + rollout). Next = **complete M14 OMS state machine (Step 12: accept/
+> reject/10-min auto-reject, cancel+refund)** OR **Step 10 search** OR deploy Step 11.
+> **Step 3 (CI) still pending.** Cashfree sandbox keys still needed (mock provider in place).
