@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll } from "vitest";
 import { JwtAuthGuard, RolesGuard } from "./auth.guard";
 import { signAccess } from "./auth.crypto";
 
@@ -13,7 +13,10 @@ function ctxWith(headers: Record<string, string>, user?: unknown, handler?: unkn
 }
 
 describe("JwtAuthGuard", () => {
-  const guard = new JwtAuthGuard(SECRET);
+  beforeAll(() => {
+    process.env.JWT_ACCESS_SECRET = SECRET; // guard reads the secret from env
+  });
+  const guard = new JwtAuthGuard();
 
   it("accepts a valid Bearer token and attaches claims", () => {
     const token = signAccess({ sub: "u1", roles: ["CUSTOMER"] }, SECRET, Date.now());

@@ -596,3 +596,71 @@ model PriceHistory {
 
   @@map("price_history")
 }
+
+// ---------------------------------------------------------------------------
+// M09 — Inventory (Step 8). Single stock authority; atomic reservations prevent
+// oversell. Spec: PART II M09. CHECK(on_hand >= reserved) + the conditional
+// UPDATE are added/used via SQL. inventory_locations + stock are tenant tables.
+// ---------------------------------------------------------------------------
+
+model InventoryLocation {
+  id        String  @id @default(uuid()) @db.Uuid // tenant
+  shopId    String  @map("shop_id") @db.Uuid
+  name      String  @default("Shop Floor")
+  addressId String? @map("address_id") @db.Uuid
+  isDefault Boolean @default(true) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
+
+  stock Stock[]
+
+  @@map("inventory_locations")
+}
+
+model Stock {
+  id               String @id @default(uuid()) @db.Uuid
+  locationId       String @map("location_id") @db.Uuid
+  listingVariantId String @map("listing_variant_id") @db.Uuid
+  quantityOnHand   Int    @default(0) @map("quantity_on_hand")
+  quantityReserved Int    @default(0) @map("quantity_reserved")
+  reorderLevel     Int?   @default(5) @map("reorder_level")
+
+  location     InventoryLocation  @relation(fields: [locationId], references: [id])
+  movements    StockMovement[]
+  reservations StockReservation[]
+
+  @@unique([locationId, listingVariantId])
+  @@index([listingVariantId])
+  @@map("stock")
+}
+
+model StockMovement {
+  id            String   @id @default(uuid()) @db.Uuid // append-only
+  stockId       String   @map("stock_id") @db.Uuid
+  deltaOnHand   Int      @map("delta_on_hand")
+  deltaReserved Int      @map("delta_reserved")
+  reason        String   @db.VarChar(15) // ORDER_RESERVE|ORDER_RELEASE|ORDER_SALE|RETURN|MANUAL_ADJUST|IMPORT|CORRECTION
+  referenceType String?  @map("reference_type")
+  referenceId   String?  @map("reference_id") @db.Uuid
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@index([stockId])
+  @@map("stock_movements")
+}
+
+model StockReservation {
+  id          String   @id @default(uuid()) @db.Uuid
+  stockId     String   @map("stock_id") @db.Uuid
+  orderItemId String   @map("order_item_id") @db.Uuid
+  quantity    Int
+  status      String   @default("ACTIVE") @db.VarChar(9) // ACTIVE|RELEASED|CONSUMED
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@index([status, expiresAt])
+  @@map("stock_reservations")
+}

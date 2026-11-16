@@ -4,7 +4,7 @@
 > Read only this file first. It tells you exactly what to do today, this week,
 > and in what order to build everything else.
 >
-> Last updated: 2026-11-05 (post-repo-setup) · Status: **planning complete, repo live, code not started**
+> Last updated: 2026-11-16 · Status: **15/32 modules built; Steps 1,2,4,5,6,7,8,9 DONE & deployed to the dev cluster. Shopkeeper can publish → multi-shop price comparison live on a consumer-grade web UI. Next: Step 10 (search) or Step 11 (cart+checkout+payments).**
 
 ---
 

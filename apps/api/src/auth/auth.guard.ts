@@ -24,7 +24,11 @@ export const CurrentUser = createParamDecorator(
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly secret = process.env.JWT_SECRET ?? "dev-secret") {}
+  /** No constructor DI: read the secret at use time so Nest never tries to
+   *  resolve a param (defaulted params still look injectable in compiled builds). */
+  private get secret(): string {
+    return process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET ?? "dev-secret";
+  }
 
   canActivate(ctx: ExecutionContext): boolean {
     const req = ctx.switchToHttp().getRequest();

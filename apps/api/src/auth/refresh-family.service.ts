@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import {
   newFamilyId,
   newRefreshToken,
@@ -43,9 +43,10 @@ export type RotateResult =
 export class RefreshFamilyService {
   private readonly store: RefreshStore;
 
-  /** Store is optional for tests (pass InMemoryRefreshStore); NestJS uses the
-   *  default in-memory store (Redis-backed store injected at Step 4 wiring). */
-  constructor(store?: RefreshStore) {
+  /** Store is optional for tests (pass InMemoryRefreshStore). @Optional() tells
+   *  NestJS not to try to resolve the interface param (no runtime value) — it
+   *  falls back to the default in-memory store (Redis-backed injected later). */
+  constructor(@Optional() store?: RefreshStore) {
     this.store = store ?? new InMemoryRefreshStore();
   }
 

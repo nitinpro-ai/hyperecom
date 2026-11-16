@@ -26,6 +26,40 @@ export function createApiClient({ baseUrl, getAccessToken }: ApiClientOptions) {
 
   return {
     health: () => request<{ status: "ok"; service: string; time: string }>("/health"),
+
+    // --- M07 catalog (public reads) ---
+    categories: () =>
+      request<Array<{ id: string; parentId: string | null; name: string; slug: string; pathText: string }>>(
+        "/categories",
+      ),
+    product: (id: string) =>
+      request<{
+        id: string; name: string; slug: string; description: string | null; gtin: string | null;
+        attributes: unknown; status: string;
+        brand: { name: string; slug: string } | null;
+        category: { id: string; name: string; slug: string };
+        variants: Array<{ id: string; sku: string | null; attributes: unknown }>;
+      }>(`/products/${id}`),
+
+    // --- M08 listings (public reads) ---
+    offers: (productId: string, variantId: string, cityId?: string) =>
+      request<Array<{ listingVariantId: string; listingId: string; shopId: string; pricePaise: number; mrpPaise: number }>>(
+        `/products/${productId}/offers?variantId=${encodeURIComponent(variantId)}${cityId ? `&cityId=${cityId}` : ""}`,
+      ),
+    shopCatalogue: (shopId: string) =>
+      request<Array<{ listingId: string; productId: string; title: string; slug: string; pricePaise: number | null; mrpPaise: number | null }>>(
+        `/shops/${shopId}/catalogue`,
+      ),
+
+    // --- M05/M06 storefront resolution ---
+    resolveStorefront: (slug: string) =>
+      request<{ id: string; slug: string; cityId: string; status: string; name: string }>(
+        `/storefront/resolve?slug=${encodeURIComponent(slug)}`,
+      ),
+    resolveTenant: (host: string) =>
+      request<{ shopId: string; slug: string; cityId: string }>(
+        `/internal/resolve-tenant?host=${encodeURIComponent(host)}`,
+      ),
   };
 }
 

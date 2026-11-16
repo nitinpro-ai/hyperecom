@@ -3,7 +3,7 @@
 > **Purpose:** any AI model, agent, or developer can pick up this project from
 > exactly where it stands by reading this file first. It is the operational
 > memory of the build. **Rule: every work session updates this file + commits.**
-> Last updated: 2026-11-05
+> Last updated: 2026-11-16 · **15/32 modules; Steps 1,2,4,5,6,7,8,9 DONE & deployed to cluster. Web redesigned (consumer-grade).**
 
 ## 1. Read this first (order)
 
@@ -37,7 +37,7 @@
 | 2 | Database foundation (geography+identity tables, extensions, RLS, seed) | ✅ **DONE (2026-11-13)** | M03 geography live on cluster DB: 7 tables + postgis/pg_trgm/ltree + GiST indexes + zone_type CHECK + RLS (public-read) · seed: India + 36 states/UTs + Bijnor (city/localities/pincode/zone) · serviceability `ST_DWithin` verified · typecheck 18/18. **Pincode CSV (~19k) import deferred — §7.** |
 | 3 | CI pipeline wiring (GHCR? or local registry + actions) | pending | |
 | 4 | Auth + RBAC + tenancy (M27 M26 M30 M29 M01 M02) | ✅ **DONE (2026-11-13)** | OTP flow end-to-end on cluster DB (request→verify→tokens→/me); lockout 6th→423; refresh rotation + **reuse→family revoke (401)**; role claims in JWT; RBAC guard 403; `user.registered.v1` emitted. Tenant RLS on `shops` lands with M05. API tests 47/47. |
-| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7 DONE** | see guide PART III |
+| 5–18 | Seller/shop → … → pilot | ▶️ **Steps 5,6,7,8,9 DONE** | see guide PART III |
 
 Module-level cards for every step: `docs/spec/12-module-build-cards.md`
 (safe order: M27→M26→M30→M29→M01→M02→M03→M10→M04→M05→M06→M07→M08→M09→M11→M12→M15→M14→M13→M20→M17→M18→M19→M22→M23→M24→M16→M31→M25→M28→M32).
@@ -126,7 +126,10 @@ Every module card below expands into the same seven steps — do them in order:
    wire `events in` as idempotent consumers. Record audit (M26) for privileged ops.
 7. **Tests + gate** — write the card's **Accept** tests; run
    `pnpm lint && pnpm typecheck && pnpm test && pnpm build`; confirm the parent
-   Step's **Verify gate**. Then update §3 tracker + `START-HERE.md` + commit.
+   Step's **Verify gate**. **For API modules: the boot test (`apps/api/src/app.boot.spec.ts`)
+   must stay green — it compiles the whole NestJS DI graph and catches wiring errors
+   (interface/defaulted constructor params) that `tsx` hides but the compiled container
+   hits.** Then update §3 tracker + `START-HERE.md` + commit.
 
 ### 9.1 Master sequence (32 modules → Step → gate)
 
@@ -136,7 +139,8 @@ Every module card below expands into the same seven steps — do them in order:
 | 2 | M26 audit | 4 | ✅ | privileged action w/o audit fails; tamper rejected |
 | 3 | M30 idempotency | 4 | ✅ | replay returns original response + same status |
 | 4 | M29 feature-flags | 4 | ✅ | flag change visible ≤30 s; default-safe if table down |
-| 5 | M01 auth | 4 | ✅ | OTP; lockout; refresh-reuse→family revoke; revoked 401 || 6 | M02 users | 4 | ✅ | CITY_ADMIN cross-city denial; one user multi-role |
+| 5 | M01 auth | 4 | ✅ | OTP; lockout; refresh-reuse→family revoke; revoked 401 |
+| 6 | M02 users | 4 | ✅ | CITY_ADMIN cross-city denial; one user multi-role |
 | 7 | M03 geography | 2 | ✅ | migrations+seed; RLS 0-rows w/o tenant; Bijnor seeded |
 | 8 | M10 media | 6 | ✅ | signed upload→WebP 256/512/1024 <10 s; spoof reject; quota |
 | 9 | M04 sellers | 5 | ✅ | KYC transitions; rejected→resubmit; docs private |
@@ -144,7 +148,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 11 | M06 shop-domains | 5 | ✅ | `{slug}.apnacity.com` resolves tenant; unknown host 404 |
 | 12 | M07 catalog | 5–7 | ✅ | GTIN dedupe; attr schema validation; merge redirects |
 | 13 | M08 listings | 7 | ✅ | publish validation matrix; price history; offers query |
-| 14 | M09 inventory | 8 | ⏳ | **100 parallel on stock=10 → exactly 10**; TTL; recon |
+| 14 | M09 inventory | 8 | ✅ | **100 parallel on stock=10 → exactly 10**; TTL; recon |
 | 15 | M11 search | 10 | ⏳ | golden set; typo tolerance; p95 <300 ms @50k |
 | 16 | M12 cart | 11 | ⏳ | anon→user merge; drift detection; ≤50 items cap |
 | 17 | M15 payments | 11 | ⏳ | replay ignored; bad signature 400; partial-refund math |
@@ -250,10 +254,35 @@ across shops). **Tenant RLS on seller_listings + listing_variants (FORCED)** + p
 Tests 8 core + 4 integration (**full flow: product→draft→publish-gate→ACTIVE→offers→price_history**).
 Stock=0→OUT_OF_STOCK + search delist wire with M09 (inventory, Step 8).*
 
-**M09 inventory** — Prereq M08,M27 · Tables `inventory_locations,stock,stock_movements,stock_reservations` ·
+**M09 inventory** ✅ DONE — Prereq M08,M27 · Tables `inventory_locations,stock,stock_movements,stock_reservations` ·
 Port `InventoryPort` reserve/release/consume/adjust/availability · Events in `listing.published.v1`,cancellations; out `stock.low/out/reconciled.v1` ·
 Rules atomic conditional UPDATE only, movements append-only same-tx, TTL 30 min, nightly recon ·
 Accept: **100-parallel no-oversell**; TTL restore; zero-drift; RLS.
+*InventoryService: the ONLY mutation is the atomic `UPDATE ... WHERE on_hand-reserved >= qty`
+(0 rows → reject). reserve/release/consume/adjust each write a stock_movements row in the same tx.
+DB CHECK(reserved<=on_hand, non-negative) + tenant RLS (FORCED) on inventory_locations.
+**Verified live: 100 parallel reservations on stock=10 → EXACTLY 10 succeed, reserved never
+exceeds on_hand.** Tests 5 integration (no-oversell, availability, release-restores, consume, recon).
+Event wiring (listing.published→init stock; stock.out→M08 OUT_OF_STOCK + search delist) + nightly
+reconcile CronJob are the remaining cross-module hookups (Step 11/order-timers + ops).*
+
+**Step 9 — Storefront / Marketplace / PDP (web app)** ✅ DONE & DEPLOYED — `apps/web` (Next.js 15):
+- **Consumer-grade redesign** (2026-11-16, after review): design-token system (teal/saffron
+  palette, surfaces, shadows, status colors w/ icons), `components/ui.tsx` primitives
+  (TopBar, ProductImage placeholder, StarRating, StockBadge, Price, Section). No emoji —
+  real aspect-ratio image slots ready for uploads.
+- **Home** `/` — hero, category rail, trust strip, product cards (price/discount hierarchy,
+  rating, stock, ETA). **PDP** `/product/[id]` — gallery+thumbs, size chips, "Best price in
+  your city" block, **offers comparison as shop cards w/ BEST PRICE badge**, sticky mobile
+  buy bar, JSON-LD Product/AggregateOffer. **Storefront** `/shop/[slug]` — branded banner,
+  shop header + KYC/returns trust row, catalogue grid, JSON-LD Store. robots.txt + sitemap.xml.
+- Public API reads: `GET /categories`, `/products/:id`, `/products/:id/offers`, `/shops/:id/catalogue`.
+  Typed `@apnacity/api-client`; `safe()` demo fallback.
+- **LIVE on cluster**: all 3 routes 200, redesign markers + custom brand CSS present, real
+  seeded prices (₹769/799/849) render via web→API→Postgres. Verified by live HTML inspection.
+- **Remaining:** offers API returns price+shopId only — shop name / distance / ETA / rating
+  enrichment (needs M03 distance + shop-name join + reviews) is a follow-up; shown via demo
+  fallback until then.
 
 **M11 search** — Prereq M08,M03 · Tables `search_synonyms`+projections · Port `SearchPort` query/suggest/synonyms ·
 Events in `listing.*,product.*,stock.*` · Rules Postgres FTS+trigram+PostGIS, rank relevance×in-stock×rating, city-first, sponsored explicit ·
@@ -315,8 +344,9 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7 complete.** Built: M27 M26 M03 M30 M29 M01 M02
-> M04 M05 M06 M10 M07 M08 (**14/32 modules**) — **a shopkeeper can now publish a product**
-> (core promise). Immediate next = **Step 8 — M09 inventory** (atomic stock, reservations,
-> 100-parallel no-oversell) → wires the stock=0→OUT_OF_STOCK cascade into M08. **Step 3 (CI)
-> still pending.** Per §9.1 order.
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 complete AND DEPLOYED to the cluster
+> (2026-11-16).** Live: API serves auth/catalog/listings/inventory/media; web renders the
+> real 3-shop offers table (demo seed `infrastructure/seed-demo.ts`). Added **boot test**
+> (`app.boot.spec.ts`) to catch DI errors pre-deploy. Built: M27 M26 M03 M30 M29 M01 M02
+> M04 M05 M06 M10 M07 M08 M09 (**15/32**). Next = **Step 10 M11 search** OR **Step 11
+> cart+checkout+payments** (MVP purchase). **Step 3 (CI) still pending.**

@@ -3,7 +3,32 @@
 > **DURABLE MEMORY — read this before touching the cluster.** Any session (any
 > model/agent/human) must treat this file as the source of truth for the dev
 > environment. Update it after every infrastructure change + commit.
-> Last updated: 2026-11-05 · **Status: DEV STACK LIVE — all endpoints verified green ✅**
+> Last updated: 2026-11-16 · **Status: DEV STACK LIVE — Steps 1–9 deployed; API serves auth/catalog/listings/inventory/media; web renders real multi-shop offers ✅**
+
+## Deploy gotchas learned 2026-11-16 (MUST avoid next time)
+
+1. **`*.tsbuildinfo` must be excluded from the rsync to the VM** (now in deploy-dev.sh).
+   If it travels, `tsc --incremental` on the VM emits NOTHING → no `dist/main.js` →
+   api pod `MODULE_NOT_FOUND` crashloop. (The `.dockerignore` only helps if building
+   from the repo; the rsync path needed its own exclude.)
+2. **Images use `:latest` + `imagePullPolicy: Always`.** `kubectl apply` sees no spec
+   change → no rollout. After pushing new images you MUST
+   `kubectl -n apnacity rollout restart deploy/api deploy/web deploy/seller-portal deploy/admin-portal`.
+3. **Compiled build is stricter than `tsx` for NestJS DI.** Interface-typed or
+   defaulted constructor params crash the compiled app (`Nest can't resolve ...`).
+   Guard against it with the **boot test** `apps/api/src/app.boot.spec.ts`
+   (`Test.createTestingModule(AppModule).compile()`) — run it before every deploy;
+   it reproduces DI errors locally in ~1s instead of in a crashlooping pod.
+4. Env var names: the cluster secret + `packages/config` use `JWT_ACCESS_SECRET`,
+   `REFRESH_SECRET`, `OTP_HASH_PEPPER` (not `JWT_SECRET`/`AUTH_PEPPER`). Media disk
+   driver vars added to `config/env-dev.env.example`.
+5. **After a build, check the pushed image DIGEST changed.** If a rebuild returns the
+   *same* `sha256:` digest as the prior build, the source on the VM did NOT change —
+   the rsync silently failed (e.g. wrong `sshpass` path in an ad-hoc command) and you
+   built stale source → old UI/behaviour ships. ALWAYS verify a redesign file is on the
+   VM (`ssh … 'test -f /tmp/hyperecom/apps/web/src/components/ui.tsx'`) before building,
+   and confirm the digest differs after. Use `deploy-dev.sh` (has `set -euo pipefail`)
+   rather than hand-rolled rsync/ssh lines.
 
 ## Cluster (dev/test — D-016)
 

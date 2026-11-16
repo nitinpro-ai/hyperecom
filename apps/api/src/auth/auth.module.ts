@@ -22,8 +22,8 @@ import { ConsoleSmsPort } from "./sms.port";
     RolesGuard,
     { provide: OTP_STORE, useClass: InMemoryOtpStore },
     { provide: SMS_PORT, useClass: ConsoleSmsPort },
-    { provide: AUTH_PEPPER, useValue: process.env.AUTH_PEPPER ?? "dev-pepper" },
-    { provide: JWT_SECRET, useValue: process.env.JWT_SECRET ?? "dev-secret" },
+    { provide: AUTH_PEPPER, useValue: process.env.OTP_HASH_PEPPER ?? process.env.AUTH_PEPPER ?? "dev-pepper" },
+    { provide: JWT_SECRET, useValue: process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET ?? "dev-secret" },
   ],
   exports: [AuthService, RefreshFamilyService, JwtAuthGuard, RolesGuard],
 })

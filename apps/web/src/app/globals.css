@@ -1,6 +1,74 @@
 @import "tailwindcss";
 
+/*
+ * ApnaCity design tokens — a deliberate, consumer-grade system (not improvised).
+ * Warm, trustworthy Indian-marketplace palette: deep teal brand + saffron accent
+ * for CTAs/offers, a clean neutral surface stack, and status colors reserved for
+ * stock/trust signals only. Tuned for strong price/discount hierarchy on mobile.
+ */
 :root {
-  --brand-primary: #0f766e;
-  --brand-accent: #f59e0b;
+  /* brand */
+  --brand: #0d7d72;          /* primary teal — headers, links, primary buttons */
+  --brand-dark: #0a5f57;
+  --brand-tint: #e6f4f2;     /* teal wash for chips/sections */
+  --accent: #f0820e;         /* saffron — add-to-cart, offers, urgency */
+  --accent-dark: #d16e00;
+
+  /* ink */
+  --ink: #1a1a1a;            /* primary text */
+  --ink-2: #4b5563;          /* secondary */
+  --ink-3: #8a93a0;          /* muted / meta */
+
+  /* surfaces */
+  --bg: #f6f7f9;             /* page */
+  --surface: #ffffff;        /* cards */
+  --line: #e9ecef;           /* hairlines */
+
+  /* status (reserved) */
+  --ok: #1a8f4c;             /* in stock */
+  --warn: #c2410c;           /* low stock */
+  --save: #1a8f4c;           /* discount green */
+
+  /* elevation + radius */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --shadow-card: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.08);
+  --shadow-hover: 0 8px 24px rgba(16,24,40,.12);
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-tint: var(--brand-tint);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-save: var(--save);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* product image placeholder — tasteful gradient + subtle pattern (no emoji) */
+.img-ph {
+  background:
+    radial-gradient(120% 120% at 20% 10%, #ffffff 0%, var(--brand-tint) 55%, #d9ece9 100%);
+  position: relative;
+}
+.img-ph::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(13,125,114,.07) 1px, transparent 0);
+  background-size: 14px 14px;
 }

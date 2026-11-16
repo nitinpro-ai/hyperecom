@@ -34,6 +34,7 @@ kubectl -n apnacity create secret generic apnacity-env \
 step "4/6 build & push images (on the VM, via the local registry)"
 $SSHP rsync -az --delete \
   --exclude node_modules --exclude .next --exclude .git --exclude dist --exclude .turbo \
+  --exclude '*.tsbuildinfo' \
   "$REPO_DIR/" ubuntu@$VM:/tmp/hyperecom/
 $SSH "bash /tmp/build-images.sh /tmp/hyperecom" || {
   $SSHP scp "$REPO_DIR/infrastructure/kubernetes/scripts/build-images.sh" ubuntu@$VM:/tmp/build-images.sh
