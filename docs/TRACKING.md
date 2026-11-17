@@ -161,7 +161,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 24 | M22 notifications | 14 | ✅ | **SMS w/o DLT id fails closed**; <5 s p95; opt-out suppress |
 | 25 | M23 support | 14 | ✅ | SLA timers; dispute freezes refund |
 | 26 | M24 admin | 16 | ⏳ | every action audited; approval queue SLA; commission audit |
-| 27 | M16 finance | 15 | ⏳ | worked example exact; **ledger == gateway to the paisa** |
+| 27 | M16 finance | 15 | ✅ | worked example exact; **ledger == gateway to the paisa** |
 | 28 | M31 invoicing | 15 | ⏳ | invoice per child order; series numbering; credit note |
 | 29 | M25 analytics | 16 | ⏳ | rollup correctness; tenant scoping; no PII in dashboards |
 | 30 | M28 webhooks | 11/15+ | ⏳ | HMAC; retry 1m/5m/30m/2h/6h; subscription mgmt |

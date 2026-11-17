@@ -20,10 +20,11 @@ import { DeliveryModule } from "./delivery/delivery.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { ReturnsModule } from "./returns/returns.module";
 import { SupportModule } from "./support/support.module";
+import { FinanceModule } from "./finance/finance.module";
 
 /**
- * Root module. Steps 4–8 + 11–14: …· Orders (OMS) · Delivery · Notifications ·
- * Returns · Support. Cross-module access only via ports/events (D-015).
+ * Root module. Steps 4–8 + 11–15: …· Notifications · Returns · Support ·
+ * Finance (ledger/settlements). Cross-module access only via ports/events (D-015).
  */
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { SupportModule } from "./support/support.module";
     NotificationsModule,
     ReturnsModule,
     SupportModule,
+    FinanceModule,
   ],
 })
 export class AppModule {}

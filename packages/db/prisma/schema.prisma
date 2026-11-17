@@ -1099,3 +1099,92 @@ model TicketMessage {
 
   @@map("ticket_messages")
 }
+
+// ---------------------------------------------------------------------------
+// M16 Finance — double-entry ledger, commission, settlements (Step 15).
+// ledger_entries: SUM(debit)=SUM(credit) per transaction_id + append-only,
+// enforced by DB triggers (raw SQL migration). Money = integer paise.
+// ---------------------------------------------------------------------------
+
+model LedgerAccount {
+  id           String @id @default(uuid()) @db.Uuid
+  ownerType    String @map("owner_type") @db.VarChar(16) // PLATFORM|SELLER|DELIVERY_PARTNER|CUSTOMER
+  ownerId      String @map("owner_id") @db.Uuid
+  accountType  String @map("account_type") @db.VarChar(20) // RECEIVABLE|PAYABLE|COMMISSION_INCOME|DELIVERY_INCOME|GATEWAY_FEE|TAX_COLLECTED|COD_HOLDING|REFUND_CLAIM
+  balancePaise BigInt @default(0) @map("balance_paise")
+
+  entries LedgerEntry[]
+
+  @@unique([ownerType, ownerId, accountType])
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id              String  @id @default(uuid()) @db.Uuid
+  transactionId   String  @map("transaction_id") @db.Uuid // groups both sides
+  ledgerAccountId String  @map("ledger_account_id") @db.Uuid
+  debitPaise      BigInt  @default(0) @map("debit_paise")
+  creditPaise     BigInt  @default(0) @map("credit_paise")
+  sourceType      String? @map("source_type")
+  sourceId        String? @map("source_id") @db.Uuid
+  memo            String?
+  settlementId    String? @map("settlement_id") @db.Uuid
+  createdBy       String? @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  account LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+
+  @@index([transactionId])
+  @@index([ledgerAccountId])
+  @@map("ledger_entries")
+}
+
+model Settlement {
+  id               String    @id @default(uuid()) @db.Uuid
+  sellerId         String    @map("seller_id") @db.Uuid
+  periodStart      DateTime? @map("period_start") @db.Date
+  periodEnd        DateTime? @map("period_end") @db.Date
+  grossSalesPaise  BigInt?   @map("gross_sales_paise")
+  commissionPaise  BigInt?   @map("commission_paise")
+  deliveryPaise    BigInt?   @map("delivery_paise")
+  refundsPaise     BigInt?   @map("refunds_paise")
+  tcsPaise         BigInt?   @map("tcs_paise")
+  adjustmentsPaise BigInt?   @map("adjustments_paise")
+  netPaise         BigInt?   @map("net_paise")
+  status           String    @default("PENDING") @db.VarChar(10) // PENDING|PROCESSING|PAID|FAILED
+  providerPayoutRef String?  @map("provider_payout_ref")
+  utr              String?
+  paidAt           DateTime? @map("paid_at") @db.Timestamptz(3)
+  statementNo      String?   @unique @map("statement_no")
+  approvedBy       String[]  @default([]) @map("approved_by") @db.Uuid // two-person approval
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  items SettlementItem[]
+
+  @@index([sellerId, status])
+  @@map("settlements")
+}
+
+model SettlementItem {
+  id            String @id @default(uuid()) @db.Uuid
+  settlementId  String @map("settlement_id") @db.Uuid
+  sellerOrderId String @map("seller_order_id") @db.Uuid
+  amountPaise   BigInt @map("amount_paise")
+  breakdown     Json?
+
+  settlement Settlement @relation(fields: [settlementId], references: [id])
+
+  @@map("settlement_items")
+}
+
+model Commission {
+  id         String    @id @default(uuid()) @db.Uuid
+  cityId     String?   @map("city_id") @db.Uuid
+  categoryId String?   @map("category_id") @db.Uuid
+  shopId     String?   @map("shop_id") @db.Uuid // shop = seller override
+  rateBp     Int       @map("rate_bp")
+  validFrom  DateTime? @map("valid_from") @db.Timestamptz(3)
+  validTo    DateTime? @map("valid_to") @db.Timestamptz(3)
+
+  @@map("commissions")
+}
