@@ -160,7 +160,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 23 | M19 returns | 14 | ✅ | window expiry; auto-approve gate; inspection-failed freeze |
 | 24 | M22 notifications | 14 | ✅ | **SMS w/o DLT id fails closed**; <5 s p95; opt-out suppress |
 | 25 | M23 support | 14 | ✅ | SLA timers; dispute freezes refund |
-| 26 | M24 admin | 16 | ⏳ | every action audited; approval queue SLA; commission audit |
+| 26 | M24 admin | 16 | ✅ | every action audited; approval queue SLA; commission audit |
 | 27 | M16 finance | 15 | ✅ | worked example exact; **ledger == gateway to the paisa** |
 | 28 | M31 invoicing | 15 | ✅ | invoice per child order; series numbering; credit note |
 | 29 | M25 analytics | 16 | ⏳ | rollup correctness; tenant scoping; no PII in dashboards |
@@ -338,7 +338,7 @@ Rules **DLT template id mandatory for SMS (fail-closed)**, fallback chain, quiet
 **M23 support** ✅ DONE (Step 14) — Prereq M14 · Tables `support_tickets,ticket_messages` · Port `SupportPort` open/reply/escalate/resolve + dispute freeze into M15/M19 ·
 Accept: SLA timers; dispute freezes refund.
 
-**M24 admin** — Prereq M04/M05/M18 approvals,M26 · Provides admin ops APIs + two-person payout rule (with M16) ·
+**M24 admin** ✅ DONE (Step 16) — Prereq M04/M05/M18 approvals,M26 · Provides admin ops APIs + two-person payout rule (with M16) ·
 Accept: every action audited; approval queue SLA; commission change audited.
 
 **M16 finance** ✅ DONE (Step 15) — Prereq M15,M14,M31 · Tables `ledger_accounts,ledger_entries,settlements,settlement_items,commissions` ·
