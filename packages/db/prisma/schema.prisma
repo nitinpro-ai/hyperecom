@@ -1250,3 +1250,38 @@ model SearchSynonym {
   @@unique([term, locale])
   @@map("search_synonyms")
 }
+
+// ---------------------------------------------------------------------------
+// M25 Analytics (Step 16). Event stream + daily rollups. Tenant-scoped reads
+// (seller sees own shop only). No raw PII in the event payload. Spec: PART II M25.
+// ---------------------------------------------------------------------------
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventType String   @map("event_type") @db.VarChar(20) // SEARCH|PRODUCT_VIEW|ADD_TO_CART|CHECKOUT_START|ORDER_PLACED|...
+  cityId    String?  @map("city_id") @db.Uuid
+  shopId    String?  @map("shop_id") @db.Uuid
+  // anonymised actor key (hashed session/user) — never raw PII
+  actorKey  String?  @map("actor_key")
+  payload   Json?    // non-PII dimensions only (productId, value_paise, query length…)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  @@index([eventType, occurredAt])
+  @@index([shopId, occurredAt])
+  @@index([cityId, occurredAt])
+  @@map("analytics_events")
+}
+
+model AnalyticsRollup {
+  id        String   @id @default(uuid()) @db.Uuid
+  day       DateTime @db.Date
+  scope     String   @db.VarChar(8) // PLATFORM|CITY|SHOP
+  scopeId   String?  @map("scope_id") @db.Uuid // cityId or shopId; null for PLATFORM
+  eventType String   @map("event_type") @db.VarChar(20)
+  count     Int      @default(0)
+  valuePaise BigInt  @default(0) @map("value_paise") // summed value where applicable (GMV)
+
+  @@unique([day, scope, scopeId, eventType])
+  @@index([scope, scopeId, day])
+  @@map("analytics_rollups")
+}

@@ -24,9 +24,10 @@ import { FinanceModule } from "./finance/finance.module";
 import { InvoicingModule } from "./invoicing/invoicing.module";
 import { SearchModule } from "./search/search.module";
 import { AdminModule } from "./admin/admin.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 
 /**
- * Root module. Steps 4–8 + 10 + 11–16: …· Search · Admin (ops console).
+ * Root module. Steps 4–8 + 10 + 11–16: …· Admin · Analytics.
  * Cross-module access only via ports/events (D-015).
  */
 @Module({
@@ -56,6 +57,7 @@ import { AdminModule } from "./admin/admin.module";
     InvoicingModule,
     SearchModule,
     AdminModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
