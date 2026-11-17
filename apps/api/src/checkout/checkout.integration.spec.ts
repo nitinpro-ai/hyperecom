@@ -123,9 +123,10 @@ d("Step 11 purchase flow (integration)", () => {
   it("webhook captures the payment; replayed webhook is ignored", async () => {
     const order = await prisma.order.findFirstOrThrow({ where: { userId }, orderBy: { createdAt: "desc" } });
     const payment = await prisma.payment.findFirstOrThrow({ where: { orderId: order.id } });
-    await prisma.payment.update({ where: { id: payment.id }, data: { providerOrderRef: "ref-step11" } });
+    const ref = `ref-${Date.now()}`; // unique per run — shared CI DB has prior webhook_events
+    await prisma.payment.update({ where: { id: payment.id }, data: { providerOrderRef: ref } });
 
-    const body = JSON.stringify({ externalRef: "ref-step11", status: "CAPTURED", amountPaise: Number(payment.amountPaise) });
+    const body = JSON.stringify({ externalRef: ref, status: "CAPTURED", amountPaise: Number(payment.amountPaise) });
     const sig = MockPaymentProvider.sign(body);
 
     const first = await payments.handleWebhook(body, sig);

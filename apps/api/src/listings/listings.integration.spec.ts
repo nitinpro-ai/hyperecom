@@ -21,6 +21,8 @@ d("Step 7 catalog + listings (integration)", () => {
   let userId = "";
   let productId = "";
   let variantId = "";
+  // unique 13-digit GTIN per run so the shared CI DB doesn't collide across builds
+  const GTIN = `89${String(Date.now()).slice(-11)}`;
 
   beforeAll(async () => {
     const cat = await prisma.category.create({
@@ -36,7 +38,8 @@ d("Step 7 catalog + listings (integration)", () => {
       data: { userId, legalName: TAG, displayName: TAG, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" },
     });
     sellerId = seller.id;
-    const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
+    const city = await prisma.city.findFirst({ where: { slug: "bijnor" } })
+      ?? await prisma.city.findFirstOrThrow(); // fall back to any seeded city
     const shop = await prisma.shop.create({
       data: { sellerId, cityId: city.id, name: `${TAG}-shop`, slug: `${TAG}-shop-${Date.now()}`, status: "ACTIVE" },
     });
@@ -66,7 +69,7 @@ d("Step 7 catalog + listings (integration)", () => {
     expect(bad).toMatchObject({ ok: false, reason: "ATTR_INVALID" });
 
     const good = await catalog.matchOrCreate({
-      categoryId, name: "Blue Cotton Shirt", gtin: "8901234567894", attributes: { size: "M" }, createdBy: userId,
+      categoryId, name: "Blue Cotton Shirt", gtin: GTIN, attributes: { size: "M" }, createdBy: userId,
     });
     expect(good.ok).toBe(true);
     if (!good.ok) return;
@@ -83,7 +86,7 @@ d("Step 7 catalog + listings (integration)", () => {
   });
 
   it("M07: GTIN dedupe attaches to the existing master", async () => {
-    const dup = await catalog.matchOrCreate({ categoryId, name: "Totally Different Name", gtin: "8901234567894", attributes: { size: "M" } });
+    const dup = await catalog.matchOrCreate({ categoryId, name: "Totally Different Name", gtin: GTIN, attributes: { size: "M" } });
     expect(dup).toMatchObject({ ok: true, matched: "GTIN", productId });
   });
 
