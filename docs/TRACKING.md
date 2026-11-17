@@ -341,7 +341,7 @@ Accept: SLA timers; dispute freezes refund.
 **M24 admin** — Prereq M04/M05/M18 approvals,M26 · Provides admin ops APIs + two-person payout rule (with M16) ·
 Accept: every action audited; approval queue SLA; commission change audited.
 
-**M16 finance** — Prereq M15,M14,M31 · Tables `ledger_accounts,ledger_entries,settlements,settlement_items,commissions` ·
+**M16 finance** ✅ DONE (Step 15) — Prereq M15,M14,M31 · Tables `ledger_accounts,ledger_entries,settlements,settlement_items,commissions` ·
 Port `FinancePort` post/sellerBalance/runSettlement/statement · Events in `payment.captured.v1,refund.*,delivery.delivered.v1` ·
 Rules balanced-per-transaction trigger, append-only, T+2 settlement, TCS/TDS, two-person payout · Accept: worked example exact; **gateway recon to the paisa**.
 
@@ -358,12 +358,11 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–14 built & gate-green
-> (2026-11-16).** Built: M27 M26 M03 M30 M29 M01 M02 M04 M05 M06 M10 M07 M08 M09 M12 M13 M15
-> M14 M17 M18 **M19 M22 M23** (+M20 partial) = **24/32**. Full post-purchase: notifications
-> (fail-closed SMS/opt-out/quiet-hours), returns (window + auto-approve + inspection→refund/
-> dispute + restock), support (SLA + dispute-freeze). **Steps 11–14 not yet deployed to cluster.**
-> Next = **Step 15 ledger+settlement+invoicing (M16/M31)** OR **Step 10 search** OR **M21
-> reviews** OR deploy 11–14. Remaining: M24 admin, M25 analytics, M28 webhooks, M32 content.
-> **Step 3 (CI) pending.** Cashfree keys needed; timer/offline/SLA sweeps need CronJobs; event
-> orchestration (READY→delivery job, delivered→OMS close, return.approved→reverse job) still manual.
+> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–15 built & gate-green;
+> Step 3 CI (Jenkins) LIVE & GREEN (build #3, 173 tests).** Built: …M14 M17 M18 M19 M22 M23
+> **M16** (+M20/M31 partial) = **25/32**. Money truth done: double-entry ledger (balanced +
+> append-only by DB trigger), commission, T+2 settlement w/ two-person release. Full suite
+> 186 tests. Next = **Step 10 M11 search** OR **M24 admin** OR **M21 reviews** OR **M31 invoicing**
+> (finishes Step 15) OR deploy 11–15. Remaining: M11, M24, M25, M28, M31, M32, M21.
+> **Jenkins:** http://192.168.2.224:32080/job/apnacity — auto-trigger (webhook) + in-CI image
+> build still TODO. Cashfree keys needed; timer/SLA sweeps need CronJobs; event orchestration manual.
