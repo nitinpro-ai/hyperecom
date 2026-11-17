@@ -165,7 +165,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 28 | M31 invoicing | 15 | ✅ | invoice per child order; series numbering; credit note |
 | 29 | M25 analytics | 16 | ✅ | rollup correctness; tenant scoping; no PII in dashboards |
 | 30 | M28 webhooks | 11/15+ | ✅ | HMAC; retry 1m/5m/30m/2h/6h; subscription mgmt |
-| 31 | M32 content | 18 | ⏳ | city landing/banner/FAQ CMS CRUD + public read |
+| 31 | M32 content | 18 | ✅ | city landing/banner/FAQ CMS CRUD + public read |
 | — | M21 reviews | P4 | ✅ | one review/item; verified-purchase; aggregate recompute |
 
 ### 9.2 Per-module work orders

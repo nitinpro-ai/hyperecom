@@ -1353,3 +1353,51 @@ model Review {
   @@index([shopId, status])
   @@map("reviews")
 }
+
+// ---------------------------------------------------------------------------
+// M32 Content (Step 18). CMS: city landing pages, banners, FAQ. Admin CRUD +
+// public read. Spec: PART II M32.
+// ---------------------------------------------------------------------------
+
+model Page {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique // e.g. "bijnor" (city landing) or "about"
+  cityId      String?  @map("city_id") @db.Uuid // null = global page
+  title       String
+  body        String   // markdown/HTML content
+  metaTitle   String?  @map("meta_title")
+  metaDesc    String?  @map("meta_desc")
+  isPublished Boolean  @default(false) @map("is_published")
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([cityId, isPublished])
+  @@map("pages")
+}
+
+model Banner {
+  id          String    @id @default(uuid()) @db.Uuid
+  cityId      String?   @map("city_id") @db.Uuid // null = all cities
+  title       String
+  imageMediaId String?  @map("image_media_id") @db.Uuid
+  linkUrl     String?   @map("link_url")
+  sortOrder   Int       @default(0) @map("sort_order")
+  activeFrom  DateTime? @map("active_from") @db.Timestamptz(3)
+  activeTo    DateTime? @map("active_to") @db.Timestamptz(3)
+  isActive    Boolean   @default(true) @map("is_active")
+
+  @@index([cityId, isActive])
+  @@map("banners")
+}
+
+model Faq {
+  id        String  @id @default(uuid()) @db.Uuid
+  category  String  @default("GENERAL")
+  question  String
+  answer    String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@index([category, isActive])
+  @@map("faqs")
+}

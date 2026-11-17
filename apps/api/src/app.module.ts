@@ -27,9 +27,10 @@ import { AdminModule } from "./admin/admin.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { ReviewsModule } from "./reviews/reviews.module";
+import { ContentModule } from "./content/content.module";
 
 /**
- * Root module. Steps 4–8 + 10 + 11–16 (+ reviews): the full ApnaCity API.
+ * Root module — ApnaCity API, ALL 32 modules (M01–M32).
  * Cross-module access only via ports/events (D-015).
  */
 @Module({
@@ -62,6 +63,7 @@ import { ReviewsModule } from "./reviews/reviews.module";
     AnalyticsModule,
     WebhooksModule,
     ReviewsModule,
+    ContentModule,
   ],
 })
 export class AppModule {}
