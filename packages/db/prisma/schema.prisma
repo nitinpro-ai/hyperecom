@@ -1188,3 +1188,49 @@ model Commission {
 
   @@map("commissions")
 }
+
+// ---------------------------------------------------------------------------
+// M31 Invoicing (Step 15) — GST tax invoice per child order, credit note per
+// refund. Per-seller GST series + sequential numbering; e-invoice IRN hooks.
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id            String   @id @default(uuid()) @db.Uuid
+  sellerOrderId String   @unique @map("seller_order_id") @db.Uuid
+  sellerId      String   @map("seller_id") @db.Uuid
+  series        String   // per-seller GST series, e.g. "AP2026"
+  seqNo         Int      @map("seq_no")
+  invoiceNo     String   @unique @map("invoice_no") // series + seqNo rendered
+  taxableValuePaise BigInt @map("taxable_value_paise")
+  taxTotalPaise BigInt   @map("tax_total_paise")
+  grandTotalPaise BigInt @map("grand_total_paise")
+  placeOfSupply String?  @map("place_of_supply") // state code
+  irn           String?  // e-invoice reference number (hook; set when IRP integrated)
+  qrPayload     String?  @map("qr_payload")
+  pdfMediaId    String?  @map("pdf_media_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  creditNotes CreditNote[]
+
+  @@unique([series, seqNo])
+  @@index([sellerId])
+  @@map("invoices")
+}
+
+model CreditNote {
+  id            String   @id @default(uuid()) @db.Uuid
+  invoiceId     String   @map("invoice_id") @db.Uuid
+  refundId      String   @unique @map("refund_id") @db.Uuid
+  series        String
+  seqNo         Int      @map("seq_no")
+  creditNoteNo  String   @unique @map("credit_note_no")
+  amountPaise   BigInt   @map("amount_paise")
+  reason        String?
+  irn           String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([series, seqNo])
+  @@map("credit_notes")
+}

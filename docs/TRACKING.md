@@ -162,7 +162,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 25 | M23 support | 14 | ✅ | SLA timers; dispute freezes refund |
 | 26 | M24 admin | 16 | ⏳ | every action audited; approval queue SLA; commission audit |
 | 27 | M16 finance | 15 | ✅ | worked example exact; **ledger == gateway to the paisa** |
-| 28 | M31 invoicing | 15 | ⏳ | invoice per child order; series numbering; credit note |
+| 28 | M31 invoicing | 15 | ✅ | invoice per child order; series numbering; credit note |
 | 29 | M25 analytics | 16 | ⏳ | rollup correctness; tenant scoping; no PII in dashboards |
 | 30 | M28 webhooks | 11/15+ | ⏳ | HMAC; retry 1m/5m/30m/2h/6h; subscription mgmt |
 | 31 | M32 content | 18 | ⏳ | city landing/banner/FAQ CMS CRUD + public read |
@@ -345,7 +345,7 @@ Accept: every action audited; approval queue SLA; commission change audited.
 Port `FinancePort` post/sellerBalance/runSettlement/statement · Events in `payment.captured.v1,refund.*,delivery.delivered.v1` ·
 Rules balanced-per-transaction trigger, append-only, T+2 settlement, TCS/TDS, two-person payout · Accept: worked example exact; **gateway recon to the paisa**.
 
-**M31 invoicing** — Prereq M14,M16 · Tables `invoices,credit_notes` · Port `InvoicePort` generate/creditNote/GST series + e-invoice IRN hooks ·
+**M31 invoicing** ✅ DONE (Step 15) — Prereq M14,M16 · Tables `invoices,credit_notes` · Port `InvoicePort` generate/creditNote/GST series + e-invoice IRN hooks ·
 Accept: invoice per child order; numbering per series; credit note on refund.
 
 **M25 analytics** — Prereq M27 · Tables `analytics_events`(partitioned)+rollups · Port `AnalyticsPort` track/dashboards/exports ·

@@ -21,10 +21,11 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { ReturnsModule } from "./returns/returns.module";
 import { SupportModule } from "./support/support.module";
 import { FinanceModule } from "./finance/finance.module";
+import { InvoicingModule } from "./invoicing/invoicing.module";
 
 /**
- * Root module. Steps 4–8 + 11–15: …· Notifications · Returns · Support ·
- * Finance (ledger/settlements). Cross-module access only via ports/events (D-015).
+ * Root module. Steps 4–8 + 11–15: …· Finance (ledger) · Invoicing (GST).
+ * Cross-module access only via ports/events (D-015).
  */
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { FinanceModule } from "./finance/finance.module";
     ReturnsModule,
     SupportModule,
     FinanceModule,
+    InvoicingModule,
   ],
 })
 export class AppModule {}
