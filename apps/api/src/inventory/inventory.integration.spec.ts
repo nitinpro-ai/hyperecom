@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { InventoryService } from "./inventory.service";
 
@@ -18,7 +19,7 @@ d("M09 inventory (integration)", () => {
   let variantId = "", listingId = "", listingVariantId = "", locationId = "", stockId = "";
 
   beforeAll(async () => {
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId = u.id;
     const seller = await prisma.seller.create({ data: { userId, legalName: TAG, displayName: TAG, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" } });
     sellerId = seller.id;

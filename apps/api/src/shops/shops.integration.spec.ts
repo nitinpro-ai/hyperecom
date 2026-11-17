@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { SellersService } from "../sellers/sellers.service";
 import { ShopsService } from "./shops.service";
@@ -24,9 +25,8 @@ d("Step 5 sellers+shops (integration)", () => {
   beforeAll(async () => {
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
     cityId = city.id;
-    const suffix = String(Date.now()).slice(-8);
-    const u1 = await prisma.user.create({ data: { phone: `+91${suffix}01`, name: TAG } });
-    const u2 = await prisma.user.create({ data: { phone: `+91${suffix}02`, name: TAG } });
+    const u1 = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
+    const u2 = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId1 = u1.id;
     userId2 = u2.id;
   });

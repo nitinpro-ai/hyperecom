@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { CartService } from "../cart/cart.service";
 import { CheckoutService } from "./checkout.service";
@@ -25,7 +26,7 @@ d("Step 11 purchase flow (integration)", () => {
   beforeAll(async () => {
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
     cityId = city.id;
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId = u.id;
     const cat = await prisma.category.create({ data: { name: `${TAG}-c`, slug: `${TAG}-c-${Date.now()}`, pathText: "root.c" } });
     const product = await prisma.product.create({ data: { categoryId: cat.id, name: `${TAG}-p`, slug: `${TAG}-p-${Date.now()}`, status: "ACTIVE" } });
@@ -33,7 +34,7 @@ d("Step 11 purchase flow (integration)", () => {
 
     // 3 shops, each with a listing + variant + stock
     for (let i = 0; i < 3; i++) {
-      const su = await prisma.user.create({ data: { phone: `+9188${String(Date.now()).slice(-7)}${i}`, name: TAG } });
+      const su = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
       const seller = await prisma.seller.create({ data: { userId: su.id, legalName: `${TAG}${i}`, displayName: `${TAG}${i}`, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" } });
       const shop = await prisma.shop.create({ data: { sellerId: seller.id, cityId, name: `${TAG}-shop${i}`, slug: `${TAG}-shop${i}-${Date.now()}`, status: "ACTIVE" } });
       shopIds.push(shop.id);

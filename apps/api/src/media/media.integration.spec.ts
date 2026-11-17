@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { MediaService } from "./media.service";
 import { LocalStoragePort } from "./storage.port";
@@ -18,7 +19,7 @@ d("M10 media (integration)", () => {
   let userId = "";
 
   beforeAll(async () => {
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId = u.id;
   });
 

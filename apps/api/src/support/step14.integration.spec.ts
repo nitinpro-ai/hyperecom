@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { NotificationsService } from "../notifications/notifications.service";
 import { ReturnsService } from "../returns/returns.service";
@@ -21,7 +22,7 @@ d("Step 14 notifications+returns+support (integration)", () => {
 
   beforeAll(async () => {
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId = u.id;
     const cat = await prisma.category.create({ data: { name: `${TAG}c`, slug: `${TAG}c-${Date.now()}`, pathText: "r", returnWindowDays: 7 } });
     const prod = await prisma.product.create({ data: { categoryId: cat.id, name: `${TAG}p`, slug: `${TAG}p-${Date.now()}`, status: "ACTIVE" } });

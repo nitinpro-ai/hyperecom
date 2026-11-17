@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { OrdersService } from "./orders.service";
 
@@ -18,7 +19,7 @@ d("M14 OMS transitions (integration)", () => {
   async function freshOrder(reserveQty = 1) {
     // minimal order with 2 seller orders, each 1 item + reserved stock
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     const cat = await prisma.category.create({ data: { name: `${TAG}c`, slug: `${TAG}c-${Date.now()}`, pathText: "r" } });
     const prod = await prisma.product.create({ data: { categoryId: cat.id, name: `${TAG}p`, slug: `${TAG}p-${Date.now()}`, status: "ACTIVE" } });
     const variant = await prisma.productVariant.create({ data: { productId: prod.id, attributes: {} } });
@@ -26,7 +27,7 @@ d("M14 OMS transitions (integration)", () => {
     await prisma.payment.create({ data: { orderId: order.id, provider: "COD", amountPaise: 148000n, status: "CREATED" } });
     const sos: string[] = []; const stocks: string[] = []; const lvs: string[] = [];
     for (let i = 0; i < 2; i++) {
-      const su = await prisma.user.create({ data: { phone: `+9177${String(Date.now()).slice(-7)}${i}`, name: TAG } });
+      const su = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
       const seller = await prisma.seller.create({ data: { userId: su.id, legalName: `${TAG}${i}`, displayName: `${TAG}${i}`, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" } });
       const shop = await prisma.shop.create({ data: { sellerId: seller.id, cityId: city.id, name: `${TAG}s${i}`, slug: `${TAG}s${i}-${Date.now()}`, status: "ACTIVE" } });
       const listing = await prisma.sellerListing.create({ data: { shopId: shop.id, productId: prod.id, status: "ACTIVE" } });

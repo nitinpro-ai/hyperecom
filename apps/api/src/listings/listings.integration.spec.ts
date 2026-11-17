@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { CatalogService } from "../catalog/catalog.service";
 import { ListingsService } from "./listings.service";
@@ -32,7 +33,7 @@ d("Step 7 catalog + listings (integration)", () => {
       },
     });
     categoryId = cat.id;
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     userId = u.id;
     const seller = await prisma.seller.create({
       data: { userId, legalName: TAG, displayName: TAG, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" },
@@ -47,20 +48,27 @@ d("Step 7 catalog + listings (integration)", () => {
   });
 
   afterAll(async () => {
-    // delete in FK order
-    const lvs = await prisma.listingVariant.findMany({ where: { shopId }, select: { id: true } });
+    // delete in FK order — scope by ALL TAG users (not just this run's ids) so
+    // orphans from a prior failed run on the shared DB don't block user delete.
+    const users = await prisma.user.findMany({ where: { name: TAG }, select: { id: true } });
+    const uids = users.map((u) => u.id);
+    const sellers = await prisma.seller.findMany({ where: { userId: { in: uids } }, select: { id: true } });
+    const sids = sellers.map((s) => s.id);
+    const shops = await prisma.shop.findMany({ where: { sellerId: { in: sids } }, select: { id: true } });
+    const shopIds = shops.map((s) => s.id);
+    const lvs = await prisma.listingVariant.findMany({ where: { shopId: { in: shopIds } }, select: { id: true } });
     const lvIds = lvs.map((x) => x.id);
     await prisma.priceHistory.deleteMany({ where: { listingVariantId: { in: lvIds } } });
-    await prisma.listingVariant.deleteMany({ where: { shopId } });
-    await prisma.sellerListing.deleteMany({ where: { shopId } });
+    await prisma.listingVariant.deleteMany({ where: { shopId: { in: shopIds } } });
+    await prisma.sellerListing.deleteMany({ where: { shopId: { in: shopIds } } });
     if (productId) await prisma.productVariant.deleteMany({ where: { productId } });
     await prisma.product.deleteMany({ where: { categoryId } });
     await prisma.matchGroup.deleteMany({ where: { canonicalProductId: productId } });
-    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: [productId, shopId, sellerId] } } });
-    await prisma.shop.deleteMany({ where: { id: shopId } });
-    await prisma.seller.deleteMany({ where: { id: sellerId } });
+    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: [productId, ...shopIds, ...sids] } } });
+    await prisma.shop.deleteMany({ where: { id: { in: shopIds } } });
+    await prisma.seller.deleteMany({ where: { id: { in: sids } } });
     await prisma.category.deleteMany({ where: { id: categoryId } });
-    await prisma.user.deleteMany({ where: { name: TAG } });
+    await prisma.user.deleteMany({ where: { id: { in: uids } } });
     await prisma.$disconnect();
   });
 

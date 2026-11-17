@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { uniquePhone } from "../test-utils";
 import { prisma } from "@apnacity/db";
 import { DeliveryService } from "./delivery.service";
 import { RidersService } from "./riders.service";
@@ -25,7 +26,7 @@ d("M17/M18 delivery (integration)", () => {
   beforeAll(async () => {
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
     // a minimal seller_order to hang a job on
-    const u = await prisma.user.create({ data: { phone: `+91${String(Date.now()).slice(-9)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     const seller = await prisma.seller.create({ data: { userId: u.id, legalName: TAG, displayName: TAG, businessType: "INDIVIDUAL", pan: "ABCDE1234F", status: "APPROVED" } });
     const shop = await prisma.shop.create({ data: { sellerId: seller.id, cityId: city.id, name: `${TAG}s`, slug: `${TAG}s-${Date.now()}`, status: "ACTIVE" } });
     const order = await prisma.order.create({ data: { orderNo: `APN-T-${Date.now()}`, userId: u.id, cityId: city.id, addressSnapshot: {}, itemsTotalPaise: 70000n, deliveryTotalPaise: 4000n, taxTotalPaise: 0n, grandTotalPaise: 74000n, status: "PLACED" } });
@@ -33,8 +34,8 @@ d("M17/M18 delivery (integration)", () => {
     sellerOrderId = so.id;
 
     // two real delivery partners (FK target for assignment)
-    const un = await prisma.user.create({ data: { phone: `+9165${String(Date.now()).slice(-7)}1`, name: TAG } });
-    const uf = await prisma.user.create({ data: { phone: `+9165${String(Date.now()).slice(-7)}2`, name: TAG } });
+    const un = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
+    const uf = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     NEAR = (await riders.register(un.id, city.id, "BIKE")).id;
     FAR = (await riders.register(uf.id, city.id, "BIKE")).id;
   });
@@ -110,7 +111,7 @@ d("M17/M18 delivery (integration)", () => {
 
   it("offline sweep marks stale riders unavailable", async () => {
     const city = await prisma.city.findUniqueOrThrow({ where: { slug: "bijnor" } });
-    const u = await prisma.user.create({ data: { phone: `+9166${String(Date.now()).slice(-7)}`, name: TAG } });
+    const u = await prisma.user.create({ data: { phone: uniquePhone(), name: TAG } });
     const { id } = await riders.register(u.id, city.id, "BIKE");
     await riders.setAvailability(id, true);
     await prisma.deliveryPartner.update({ where: { id }, data: { lastSeenAt: new Date(Date.now() - 10 * 60 * 1000) } }); // 10 min ago
