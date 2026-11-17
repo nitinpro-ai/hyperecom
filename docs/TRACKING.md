@@ -149,7 +149,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 12 | M07 catalog | 5–7 | ✅ | GTIN dedupe; attr schema validation; merge redirects |
 | 13 | M08 listings | 7 | ✅ | publish validation matrix; price history; offers query |
 | 14 | M09 inventory | 8 | ✅ | **100 parallel on stock=10 → exactly 10**; TTL; recon |
-| 15 | M11 search | 10 | ⏳ | golden set; typo tolerance; p95 <300 ms @50k |
+| 15 | M11 search | 10 | ✅ | golden set; typo tolerance; p95 <300 ms @50k |
 | 16 | M12 cart | 11 | ✅ | anon→user merge; drift detection; ≤50 items cap |
 | 17 | M15 payments | 11 | ✅ | replay ignored; bad signature 400; partial-refund math |
 | 18 | M14 orders | 11–12 | ✅ | full transition matrix; 10-min auto-reject; partial cancel |
@@ -284,7 +284,7 @@ reconcile CronJob are the remaining cross-module hookups (Step 11/order-timers +
   enrichment (needs M03 distance + shop-name join + reviews) is a follow-up; shown via demo
   fallback until then.
 
-**M11 search** — Prereq M08,M03 · Tables `search_synonyms`+projections · Port `SearchPort` query/suggest/synonyms ·
+**M11 search** ✅ DONE (Step 10) — Prereq M08,M03 · Tables `search_synonyms`+projections · Port `SearchPort` query/suggest/synonyms ·
 Events in `listing.*,product.*,stock.*` · Rules Postgres FTS+trigram+PostGIS, rank relevance×in-stock×rating, city-first, sponsored explicit ·
 Accept: golden set; typo tolerance; p95 <300 ms @50k.
 

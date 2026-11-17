@@ -22,9 +22,10 @@ import { ReturnsModule } from "./returns/returns.module";
 import { SupportModule } from "./support/support.module";
 import { FinanceModule } from "./finance/finance.module";
 import { InvoicingModule } from "./invoicing/invoicing.module";
+import { SearchModule } from "./search/search.module";
 
 /**
- * Root module. Steps 4–8 + 11–15: …· Finance (ledger) · Invoicing (GST).
+ * Root module. Steps 4–8 + 10 + 11–15: …· Finance · Invoicing · Search.
  * Cross-module access only via ports/events (D-015).
  */
 @Module({
@@ -52,6 +53,7 @@ import { InvoicingModule } from "./invoicing/invoicing.module";
     SupportModule,
     FinanceModule,
     InvoicingModule,
+    SearchModule,
   ],
 })
 export class AppModule {}

@@ -1234,3 +1234,19 @@ model CreditNote {
   @@unique([series, seqNo])
   @@map("credit_notes")
 }
+
+// ---------------------------------------------------------------------------
+// M11 Search & Discovery (Step 10). FTS + pg_trgm + PostGIS over ACTIVE
+// listings (indexes from M07 migrations). Only synonyms are a table; results
+// are projected from live listing/product/shop rows. Spec: PART II M11.
+// ---------------------------------------------------------------------------
+
+model SearchSynonym {
+  id       String   @id @default(uuid()) @db.Uuid
+  term     String
+  synonyms String[] @default([])
+  locale   String   @default("EN") @db.VarChar(2)
+
+  @@unique([term, locale])
+  @@map("search_synonyms")
+}
