@@ -7,6 +7,9 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 RUN pnpm install --frozen-lockfile --filter @apnacity/web... --ignore-scripts
+# NEXT_PUBLIC_* is baked at build time → must be present during `next build`.
+ARG NEXT_PUBLIC_API_BASE_URL=http://192.168.2.224:30400
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN pnpm --filter @apnacity/web build
 
 FROM node:22-alpine AS runner

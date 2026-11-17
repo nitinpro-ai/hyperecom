@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@apnacity/db";
-import { prisma } from "@apnacity/db";
+import { prisma, Prisma } from "@apnacity/db";
 import { normalizeQuery, orderByClause, type SearchFilters, type SortKey } from "./search.core";
 
 export interface SearchHit {

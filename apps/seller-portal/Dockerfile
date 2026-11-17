@@ -7,6 +7,8 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/seller-portal ./apps/seller-portal
 RUN pnpm install --frozen-lockfile --filter @apnacity/seller-portal... --ignore-scripts
+ARG NEXT_PUBLIC_API_BASE_URL=http://192.168.2.224:30400
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN pnpm --filter @apnacity/seller-portal build
 
 FROM node:22-alpine AS runner

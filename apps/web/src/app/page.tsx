@@ -1,4 +1,5 @@
 import { TopBar, ProductImage, StarRating, StockBadge, Price, Section } from "../components/ui";
+import { api, safe } from "../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -18,19 +19,22 @@ const shops = [
   { name: "Fashion Hub", cat: "Fashion", rating: 4.0, reviews: 48, km: 3.1 },
 ];
 
-const products = [
-  { id: "demo", name: "Men's Cotton Shirt — Regular Fit", shop: "Bagga Cloth", price: 76900, mrp: 119900, rating: 4.4, stock: 25, eta: "90 min", shops: 3 },
-  { id: "demo", name: "Nike Air Max 270 Running Shoes", shop: "City Sports", price: 329900, mrp: 499900, rating: 4.6, stock: 8, eta: "2 hr", shops: 2 },
-  { id: "demo", name: "Mixer Grinder 750W 3-Jar", shop: "Electro Hub", price: 249900, mrp: 329900, rating: 4.3, stock: 12, eta: "1 hr", shops: 4 },
-  { id: "demo", name: "Cotton Kurta — Festive", shop: "Fashion Hub", price: 59900, mrp: 99900, rating: 4.1, stock: 3, eta: "90 min", shops: 2 },
-  { id: "demo", name: "boAt Bluetooth Earbuds", shop: "Electro Hub", price: 129900, mrp: 249900, rating: 4.5, stock: 40, eta: "1 hr", shops: 5 },
-  { id: "demo", name: "Kashmir Willow Cricket Bat", shop: "City Sports", price: 189900, mrp: 259900, rating: 4.2, stock: 15, eta: "2 hr", shops: 2 },
+// Live products from the API (empty query = all); falls back to demo when API is unreachable.
+const DEMO_PRODUCTS = [
+  { id: "demo", name: "Men's Cotton Shirt — Regular Fit", price: 76900, mrp: 119900, stock: 25 },
+  { id: "demo", name: "Nike Air Max 270 Running Shoes", price: 329900, mrp: 499900, stock: 8 },
+  { id: "demo", name: "Mixer Grinder 750W 3-Jar", price: 249900, mrp: 329900, stock: 12 },
+  { id: "demo", name: "Cotton Kurta — Festive", price: 59900, mrp: 99900, stock: 3 },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const hits = await safe(() => api.search(""), []);
+  const products = hits.length > 0
+    ? hits.slice(0, 12).map((h) => ({ id: h.productId, name: h.name, price: h.pricePaise, mrp: h.mrpPaise, stock: h.inStock ? 10 : 0 }))
+    : DEMO_PRODUCTS;
   return (
     <div className="min-h-screen">
-      <TopBar city={CITY.name} state={CITY.state} cartCount={3} />
+      <TopBar city={CITY.name} state={CITY.state} cartCount={0} />
 
       {/* category rail */}
       <nav className="border-b border-line bg-surface">
@@ -101,17 +105,12 @@ export default function HomePage() {
               <a key={i} href={`/product/${p.id}`} className="group flex flex-col overflow-hidden rounded-[var(--r-md)] border border-line bg-surface transition hover:shadow-[var(--shadow-hover)]">
                 <div className="relative">
                   <ProductImage className="aspect-square w-full" />
-                  <span className="absolute left-2 top-2 rounded bg-save px-1.5 py-0.5 text-[11px] font-bold text-white">{discountBadge(p.price, p.mrp)}</span>
+                  {p.mrp > p.price && <span className="absolute left-2 top-2 rounded bg-save px-1.5 py-0.5 text-[11px] font-bold text-white">{discountBadge(p.price, p.mrp)}</span>}
                 </div>
                 <div className="flex flex-1 flex-col p-3">
                   <div className="line-clamp-2 min-h-[2.5rem] text-sm font-medium text-ink">{p.name}</div>
-                  <div className="mt-0.5 text-xs text-ink-3">{p.shop} · {p.shops} shops</div>
                   <div className="mt-1.5"><Price price={p.price} mrp={p.mrp} /></div>
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <StarRating value={p.rating} />
-                    <StockBadge available={p.stock} />
-                  </div>
-                  <div className="mt-1 text-[11px] text-ink-3">🛵 Delivery in {p.eta}</div>
+                  <div className="mt-1.5"><StockBadge available={p.stock} /></div>
                   <span className="mt-2.5 block rounded-full border border-accent bg-accent/5 py-1.5 text-center text-xs font-bold text-accent-dark group-hover:bg-accent group-hover:text-white">Compare shops</span>
                 </div>
               </a>

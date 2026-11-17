@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { CatalogService } from "./catalog.service";
 import { CatalogController } from "./catalog.controller";
+import { CatalogSellerController } from "./catalog.seller.controller";
 import { AuthModule } from "../auth/auth.module";
 
 /**
@@ -10,7 +11,7 @@ import { AuthModule } from "../auth/auth.module";
  */
 @Module({
   imports: [AuthModule],
-  controllers: [CatalogController],
+  controllers: [CatalogController, CatalogSellerController],
   providers: [CatalogService],
   exports: [CatalogService],
 })

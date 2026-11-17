@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ListingsService } from "./listings.service";
 import { ListingsController } from "./listings.controller";
+import { ListingsSellerController } from "./listings.seller.controller";
 import { AuthModule } from "../auth/auth.module";
 
 /**
@@ -9,7 +10,7 @@ import { AuthModule } from "../auth/auth.module";
  */
 @Module({
   imports: [AuthModule],
-  controllers: [ListingsController],
+  controllers: [ListingsController, ListingsSellerController],
   providers: [ListingsService],
   exports: [ListingsService],
 })
