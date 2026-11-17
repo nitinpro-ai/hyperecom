@@ -7,3 +7,8 @@ onlyBuiltDependencies:
   - "@prisma/engines"
   - prisma
   - esbuild
+
+# CI: don't hard-fail the install when a build script is ignored. We run
+# `prisma generate` explicitly and esbuild ships a prebuilt binary, so ignored
+# native build scripts are safe here. (pnpm 12 otherwise exits ERR_PNPM_IGNORED_BUILDS.)
+strictDepBuilds: false
