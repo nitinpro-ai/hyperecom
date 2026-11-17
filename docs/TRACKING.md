@@ -164,7 +164,7 @@ Every module card below expands into the same seven steps — do them in order:
 | 27 | M16 finance | 15 | ✅ | worked example exact; **ledger == gateway to the paisa** |
 | 28 | M31 invoicing | 15 | ✅ | invoice per child order; series numbering; credit note |
 | 29 | M25 analytics | 16 | ✅ | rollup correctness; tenant scoping; no PII in dashboards |
-| 30 | M28 webhooks | 11/15+ | ⏳ | HMAC; retry 1m/5m/30m/2h/6h; subscription mgmt |
+| 30 | M28 webhooks | 11/15+ | ✅ | HMAC; retry 1m/5m/30m/2h/6h; subscription mgmt |
 | 31 | M32 content | 18 | ⏳ | city landing/banner/FAQ CMS CRUD + public read |
 | — | M21 reviews | P4 | ⏳ | one review/item; verified-purchase; aggregate recompute |
 
@@ -351,7 +351,7 @@ Accept: invoice per child order; numbering per series; credit note on refund.
 **M25 analytics** ✅ DONE (Step 16) — Prereq M27 · Tables `analytics_events`(partitioned)+rollups · Port `AnalyticsPort` track/dashboards/exports ·
 Accept: rollup correctness; tenant scoping; no PII in dashboards.
 
-**M28 webhooks** — Prereq M27,M30 · Tables `webhook_subscriptions` · Provides outbound subscriptions (HMAC, retries 1m/5m/30m/2h/6h)+mgmt API.
+**M28 webhooks** ✅ DONE — Prereq M27,M30 · Tables `webhook_subscriptions` · Provides outbound subscriptions (HMAC, retries 1m/5m/30m/2h/6h)+mgmt API.
 
 **M32 content** — Prereq M24 · Tables `pages,banners,faqs` · Provides city landing/banner/FAQ CMS CRUD + public read APIs.
 
