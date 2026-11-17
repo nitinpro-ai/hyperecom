@@ -358,11 +358,13 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 **M21 reviews** (Phase 4, post-delivery) — Prereq M14 · Tables `reviews` · Port `ReviewsPort` submit(verified orderItem)/moderate/aggregates ·
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
-> **Next action now:** **Steps 1,2,4,5,6,7,8,9 deployed + Steps 11–15 built & gate-green;
-> Step 3 CI (Jenkins) LIVE & GREEN (build #3, 173 tests).** Built: …M14 M17 M18 M19 M22 M23
-> **M16** (+M20/M31 partial) = **25/32**. Money truth done: double-entry ledger (balanced +
-> append-only by DB trigger), commission, T+2 settlement w/ two-person release. Full suite
-> 186 tests. Next = **Step 10 M11 search** OR **M24 admin** OR **M21 reviews** OR **M31 invoicing**
-> (finishes Step 15) OR deploy 11–15. Remaining: M11, M24, M25, M28, M31, M32, M21.
-> **Jenkins:** http://192.168.2.224:32080/job/apnacity — auto-trigger (webhook) + in-CI image
-> build still TODO. Cashfree keys needed; timer/SLA sweeps need CronJobs; event orchestration manual.
+> **Next action now:** **ALL 32 MODULES BUILT + DEPLOYED to the cluster (2026-11-17).**
+> api/web/seller/admin rolled out from the 32-module image; all pods 1/1; API serves every
+> module (/v1/health, /v1/categories, /v1/auth/me, offers, storefront resolve); web renders
+> real multi-shop PDP. Gate: typecheck 18/18, tests 241/43 files, build 11/11. Jenkins CI green.
+> **Remaining = integration/ops, not modules:** (1) wire cross-module event orchestration
+> (order READY→delivery job, delivered→OMS close→settlement, settlement.paid→webhook);
+> (2) schedule sweeps as CronJobs (webhook retries, order/SLA timers, settlement batch,
+> analytics rollups, offline-rider); (3) external accounts (Cashfree, DLT SMS, Maps, MinIO);
+> (4) merge feat/step4-foundation-identity → main (deploy stage is main-gated); (5) CA sign-off
+> on GST/TCS before money moves.
