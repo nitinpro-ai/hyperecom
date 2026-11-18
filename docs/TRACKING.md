@@ -361,7 +361,7 @@ Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 > **Next action now:** **ALL 32 MODULES BUILT + DEPLOYED to the cluster (2026-11-17).**
 ---
 
-## Usability pass — front-page interactivity + email registration (2026-11-17)
+## Usability pass — front-page interactivity + email registration (2026-11-17 → 11-18)
 
 **Reported:** customer front page had inert elements (location "Bijnor" dead, category
 chips were `<span>`s, hero buttons no handler, "See all" → `#`, shop cards hardcoded to

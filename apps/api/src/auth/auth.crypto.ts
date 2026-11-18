@@ -96,10 +96,11 @@ export function signAccess(
   claims: Omit<AccessClaims, "iat" | "exp">,
   secret: string,
   now: number,
+  ttlMs: number = ACCESS_TTL_MS,
 ): string {
   const header = b64u(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const payload = b64u(
-    JSON.stringify({ ...claims, iat: now, exp: now + ACCESS_TTL_MS }),
+    JSON.stringify({ ...claims, iat: now, exp: now + ttlMs }),
   );
   const sig = createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
   return `${header}.${payload}.${sig}`;

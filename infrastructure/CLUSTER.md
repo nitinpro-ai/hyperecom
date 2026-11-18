@@ -3,7 +3,7 @@
 > **DURABLE MEMORY — read this before touching the cluster.** Any session (any
 > model/agent/human) must treat this file as the source of truth for the dev
 > environment. Update it after every infrastructure change + commit.
-> Last updated: 2026-11-17 · **Status: COMPLETE CLICKABLE DEV SITE LIVE ✅** — all 32 modules + full customer UI (home/login/register/search/cart/checkout/orders) + seller portal (register/KYC/shop/product-upload) deployed. **Front page fully interactive** (city picker, category chips, hero/See-all links, data-driven shop cards — no inert elements). **Email+mobile registration live** (`POST /auth/register`, `POST /auth/login`; scrypt password; CUSTOMER role; verified live: register→JWT, login 200, dup email 409, wrong-pw 401). Empty-query search now **browse-lists** all active listings (powers the "All" chip + shop browse). Rich seed: 6 categories, 8 shops, 26 products.
+> Last updated: 2026-11-18 · **Status: COMPLETE CLICKABLE DEV SITE LIVE ✅** — all 32 modules + full customer UI (home/login/register/search/cart/checkout/orders) + seller portal (login/register/KYC/shop/product-upload) deployed. **Front page fully interactive** (working city picker, category chips → `/search?q=`, hero/See-all links, **data-driven shop cards** → `/search?shopId=` — no inert elements, no demo fallback). **Email+mobile registration live** on web + seller portal (`POST /auth/register`, `POST /auth/login`; scrypt password; CUSTOMER role). **CORS enabled** on the API (allowlist via `CORS_ORIGINS`) — browser logins work. Empty-query search now **browse-lists** all active listings (powers the "All" chip + shop browse). **Demo logins seeded** (see "Demo / test accounts" below). Rich seed: 6 categories, 8 shops, 26 products. All verified live (browser + curl).
 
 ## Deploy gotcha reinforced 2026-11-17 (hit again)
 
@@ -81,6 +81,26 @@
 5. **Dockerfile build context = repo root** and must COPY `tsconfig.base.json`.
 6. **NodePorts:** ours = 30280/30281/30282/30400/30432/30900-1. Ports 30080/30081
    and 30300/30850 belong to other tenants — always check before allocating.
+7. **CORS is mandatory on the API.** Browser apps (web :30280, seller :30281, admin :30282)
+   are different origins from the API (:30400), so `apps/api/src/main.ts` MUST call
+   `app.enableCors()` with an allowlist (env `CORS_ORIGINS`, comma-separated — NOT `*`, since
+   requests carry bearer tokens). Without it, every client fetch fails with **"Failed to fetch"**
+   in the browser while server-side curl still works (curl bypasses CORS — so this bug hides from
+   curl-only checks). If you add a new frontend origin/NodePort, add it to `CORS_ORIGINS`.
+
+## Demo / test accounts (dev only — seeded, not for prod)
+
+Seeded idempotently by `infrastructure/seed-demo-accounts.ts` (the scrypt password hash MUST use
+the live `OTP_HASH_PEPPER` — run with that env injected from the `apnacity-env` secret). Re-running
+refreshes the password. Password for both: `demo12345`.
+
+| Account | Login page | Email | Role / state |
+|---|---|---|---|
+| Customer | http://192.168.2.224:30280/login (Email) | `demo_customer@apnacity.dev` | CUSTOMER |
+| Seller | http://192.168.2.224:30281/login (Email/Sign In) | `demo_seller@apnacity.dev` | CUSTOMER + SELLER_OWNER · seller APPROVED · shop `demo-store` ACTIVE in Bijnor |
+
+Both verified live (login 200, CORS allow-origin echoed). Seller portal also supports phone-OTP
+(code read from `kubectl -n apnacity logs deploy/api | grep OTP`).
 
 ## Day-2 operations (exact commands)
 

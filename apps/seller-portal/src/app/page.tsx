@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { clientApi, getSession, inr, setSession, WEB_MARKETPLACE_URL } from "../lib/session";
+import { clientApi, clearSession, getSession, inr, setSession, WEB_MARKETPLACE_URL } from "../lib/session";
 import { SellerShell } from "../components/seller-shell";
 
 type Overview = Awaited<ReturnType<ReturnType<typeof clientApi>["sellerMe"]>>;
@@ -37,8 +37,11 @@ export default function SellerHome() {
       setOrders(ord);
       setListings(lst);
       if (ov.cities[0]) setNewShop((p) => ({ ...p, cityId: p.cityId || ov.cities[0]!.id }));
-    } catch {
-      // session expired or invalid
+    } catch (err) {
+      if (/401|token|missing bearer/i.test((err as Error).message || "") || !getSession()) {
+        clearSession();
+        setHasAuth(false);
+      }
     }
   }
 

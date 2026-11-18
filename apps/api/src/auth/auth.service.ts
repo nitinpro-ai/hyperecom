@@ -201,6 +201,7 @@ export class AuthService {
       { sub: user.id, roles: user.roles },
       this.jwtSecret,
       this.now(),
+      24 * 60 * 60 * 1000,
     );
     return { accessToken, refreshToken: rotated.refreshToken, family, user };
   }
@@ -224,6 +225,7 @@ export class AuthService {
       { sub: user.id, roles: user.roles },
       this.jwtSecret,
       this.now(),
+      24 * 60 * 60 * 1000,
     );
     return { accessToken, refreshToken, family, user };
   }

@@ -7,20 +7,36 @@
 export interface ApiClientOptions {
   baseUrl: string;
   getAccessToken?: () => string | undefined;
+  refreshAccessToken?: () => Promise<string | undefined>;
 }
 
-export function createApiClient({ baseUrl, getAccessToken }: ApiClientOptions) {
-  async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export function createApiClient({ baseUrl, getAccessToken, refreshAccessToken }: ApiClientOptions) {
+  async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
     const headers = new Headers(init?.headers);
     const token = getAccessToken?.();
     if (token) headers.set("Authorization", `Bearer ${token}`);
     if (init?.body) headers.set("Content-Type", "application/json");
     const res = await fetch(`${baseUrl}/v1${path}`, { ...init, headers });
+    if (res.status === 401 && !retried && refreshAccessToken && !path.startsWith("/auth/")) {
+      const freshToken = await refreshAccessToken().catch(() => undefined);
+      if (freshToken) {
+        return request<T>(path, init, true);
+      }
+    }
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as
-        | { error?: { code?: string; message?: string; traceId?: string } }
+        | {
+            message?: string | string[];
+            error?: string | { code?: string; message?: string; traceId?: string };
+          }
         | null;
-      throw new ApiError(res.status, body?.error?.code, body?.error?.message, body?.error?.traceId);
+      const errObj = typeof body?.error === "object" && body?.error !== null ? body.error : undefined;
+      const code = errObj?.code ?? (typeof body?.error === "string" ? body.error : undefined);
+      const msg =
+        errObj?.message ??
+        (Array.isArray(body?.message) ? body.message.join(", ") : body?.message) ??
+        (typeof body?.error === "string" ? body.error : undefined);
+      throw new ApiError(res.status, code, msg, errObj?.traceId);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;

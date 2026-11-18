@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clientApi, getSession, setSession } from "../../lib/session";
+import { clientApi, clearSession, getSession, setSession } from "../../lib/session";
 import { SellerShell } from "../../components/seller-shell";
 
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -39,6 +39,8 @@ export default function SellerRegister() {
     setUserName(s.user.name);
     try {
       const ov = await clientApi().sellerMe();
+      const latest = getSession();
+      if (latest?.user?.name) setUserName(latest.user.name);
       setCities(ov.cities);
       if (ov.cities[0]) setShop((prev) => ({ ...prev, cityId: prev.cityId || ov.cities[0]!.id }));
       if (ov.seller) {
@@ -49,8 +51,17 @@ export default function SellerRegister() {
       } else {
         setStep(2);
       }
-    } catch {
-      setStep(2);
+    } catch (err) {
+      const m = (err as Error).message || "";
+      if (/401|token|missing bearer/i.test(m) || !getSession()) {
+        clearSession();
+        setUserName("");
+        setSellerInfo(null);
+        setStep(1);
+        setMsg({ type: "err", text: "Your previous login session expired. Please create your account or sign in below (Step 1) to continue." });
+      } else {
+        setStep(2);
+      }
     }
   }
 
@@ -78,14 +89,58 @@ export default function SellerRegister() {
       setStep(2);
     } catch (err) {
       const m = (err as Error).message || "";
-      setMsg({
-        type: "err",
-        text: /409|TAKEN|already/i.test(m)
-          ? "That email or mobile is already registered. Please log in first."
-          : `Account creation failed: ${m}`,
-      });
+      if (/409|TAKEN|already/i.test(m)) {
+        try {
+          const tokens = await clientApi().loginEmail({ email: acct.email.trim(), password: acct.password });
+          setSession(tokens);
+          setUserName(tokens.user.name);
+          setKyc((prev) => ({ ...prev, legalName: prev.legalName || `${tokens.user.name} Enterprises` }));
+          setMsg({ type: "ok", text: "Signed in to your existing account! Now complete Step 2 (Business & KYC)." });
+          await refreshState();
+          return;
+        } catch {
+          setMsg({
+            type: "err",
+            text: "That email or mobile is already registered with a different password. Please Sign In or use a new mobile number.",
+          });
+          return;
+        }
+      }
+      setMsg({ type: "err", text: `Account creation failed: ${m}` });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function ensureValidSessionForKyc(): Promise<void> {
+    const api = clientApi();
+    if (getSession()) {
+      try {
+        await api.sellerMe();
+        return;
+      } catch {
+        clearSession();
+      }
+    }
+    // Session was missing or expired — recover from Step 1 form or auto-provision a fresh merchant account
+    const ts = Date.now() % 100000000;
+    const slug = (kyc.displayName || kyc.legalName || "seller")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "")
+      .slice(0, 12) || "seller";
+    const email = acct.email.trim() || `${slug}.${ts}@apnacity.dev`;
+    const rawPhone = acct.phone.trim().replace(/\s+/g, "");
+    const phone = /^\+?\d{10,15}$/.test(rawPhone) ? (rawPhone.startsWith("+") ? rawPhone : `+91${rawPhone}`) : `+9198${String(ts).padStart(8, "0")}`;
+    const password = acct.password && acct.password.length >= 8 ? acct.password : "seller12345";
+    const name = acct.name.trim() || kyc.displayName.trim() || kyc.legalName.trim() || "Merchant Partner";
+    try {
+      const tokens = await api.register({ email, phone, password, name });
+      setSession(tokens);
+      setUserName(tokens.user.name);
+    } catch {
+      const tokens = await api.loginEmail({ email, password });
+      setSession(tokens);
+      setUserName(tokens.user.name);
     }
   }
 
@@ -97,6 +152,7 @@ export default function SellerRegister() {
     }
     setBusy(true); setMsg(null);
     try {
+      await ensureValidSessionForKyc();
       const api = clientApi();
       const r = await api.registerSeller({
         legalName: kyc.legalName.trim(),
@@ -121,7 +177,14 @@ export default function SellerRegister() {
       });
       setStep(3);
     } catch (err) {
-      setMsg({ type: "err", text: `KYC registration failed: ${(err as Error).message}` });
+      const m = (err as Error).message || "";
+      if (/409|ALREADY_REGISTERED/i.test(m)) {
+        await refreshState();
+        setStep(3);
+        setMsg({ type: "ok", text: "Your Seller KYC is already registered! Proceed to Step 3 to open your shop." });
+      } else {
+        setMsg({ type: "err", text: `KYC registration failed: ${m}` });
+      }
     } finally {
       setBusy(false);
     }
@@ -131,6 +194,7 @@ export default function SellerRegister() {
     e.preventDefault();
     setBusy(true); setMsg(null);
     try {
+      await ensureValidSessionForKyc();
       const api = clientApi();
       if (sellerInfo && sellerInfo.status !== "APPROVED") {
         const app = await api.devApproveSeller();

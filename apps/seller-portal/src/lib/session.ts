@@ -35,10 +35,48 @@ const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://192.168.2.224:30400
 export const WEB_MARKETPLACE_URL =
   process.env.NEXT_PUBLIC_WEB_BASE_URL ?? "http://192.168.2.224:30280";
 
+let refreshInFlight: Promise<string | undefined> | null = null;
+
+async function doRefreshAccessToken(): Promise<string | undefined> {
+  const cur = getSession();
+  if (!cur?.refreshToken || !cur?.family) {
+    clearSession();
+    return undefined;
+  }
+  try {
+    const res = await fetch(`${BASE}/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ family: cur.family, refreshToken: cur.refreshToken }),
+    });
+    if (!res.ok) {
+      clearSession();
+      return undefined;
+    }
+    const next = (await res.json()) as Session;
+    if (next?.accessToken) {
+      setSession(next);
+      return next.accessToken;
+    }
+    clearSession();
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function clientApi() {
   return createApiClient({
     baseUrl: BASE,
     getAccessToken: () => getSession()?.accessToken,
+    refreshAccessToken: () => {
+      if (!refreshInFlight) {
+        refreshInFlight = doRefreshAccessToken().finally(() => {
+          refreshInFlight = null;
+        });
+      }
+      return refreshInFlight;
+    },
   });
 }
 
