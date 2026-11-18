@@ -39,6 +39,11 @@
 
 ## End-to-End Testing
 
-- **Verification**: Test the complete seller journey.
-- **Issue Resolution**: Identify and fix any remaining issues.eller registration and authentication
+- **Verification**: Test the complete seller journey (`apps/api/src/auth/seller-auth.integration.spec.ts` + live cluster E2E).
+- **Issue Resolution**: Identify and fix any remaining issues in seller registration and authentication.
+- **References**:
+  - Live URLs & Demo Credentials: [`../docs/ACCESS_AND_CREDENTIALS.md`](../docs/ACCESS_AND_CREDENTIALS.md)
+  - Master Documentation Index: [`../docs/INDEX.md`](../docs/INDEX.md)
+  - AI Implementation & Test Log: [`../docs/AI_PROGRESS.md`](../docs/AI_PROGRESS.md)
+
 

@@ -6,8 +6,10 @@
 > product uploaded once appears on the shop site, the marketplace, city search
 > and the mobile apps.
 
-**Status:** 📋 Planning complete · 💻 **Step 1 + dev cluster DONE — Step 2 (database) next** ·
-**👉 [docs/START-HERE.md](docs/START-HERE.md)** (entry point) ·
+**Status:** ✅ **Live on Kubernetes Dev Cluster (`192.168.2.224`)** — Customer Web (`:30280`), Seller Studio Portal (`:30281`), Admin Portal (`:30282`), and API (`:30400`) ·
+**👉 [docs/ACCESS_AND_CREDENTIALS.md](docs/ACCESS_AND_CREDENTIALS.md)** (URLs & demo logins) ·
+**[docs/INDEX.md](docs/INDEX.md)** (master documentation index) ·
+**[docs/START-HERE.md](docs/START-HERE.md)** (entry point) ·
 **[docs/TRACKING.md](docs/TRACKING.md)** (progress tracker) ·
 **[infrastructure/CLUSTER.md](infrastructure/CLUSTER.md)** (dev cluster on Kubernetes).
 
@@ -53,7 +55,11 @@ React Native + Expo · S3 + Cloudflare · Cashfree · Docker · GitHub Actions.
 
 | Want to… | Open |
 |----------|------|
+| **Access live sites & demo usernames/passwords** | **[`docs/ACCESS_AND_CREDENTIALS.md`](docs/ACCESS_AND_CREDENTIALS.md)** |
+| **Browse the Master Documentation Index (all docs)** | **[`docs/INDEX.md`](docs/INDEX.md)** |
 | Start development | [`docs/START-HERE.md`](docs/START-HERE.md) |
+| Track build & module status | [`docs/TRACKING.md`](docs/TRACKING.md) |
+| Review Seller Auth & Studio implementation log | [`docs/AI_PROGRESS.md`](docs/AI_PROGRESS.md) |
 | Read the full spec | [`docs/COMPLETE-BUILD-GUIDE.md`](docs/COMPLETE-BUILD-GUIDE.md) |
 | See the short plan | [`docs/BUILD-PLAN.md`](docs/BUILD-PLAN.md) |
 | Deep reference | [`docs/README.md`](docs/README.md) → `docs/spec/00–12` |
