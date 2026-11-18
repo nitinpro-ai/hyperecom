@@ -47,7 +47,7 @@ export class SellersController {
   async updateMyListing(
     @CurrentUser() user: AccessClaims,
     @Param("id") id: string,
-    @Body() dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED" },
+    @Body() dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED"; imageUrl?: string },
   ) {
     const r = await this.sellers.updateSellerListing(user.sub, id, dto);
     if (!r.ok) throw new HttpException(r.reason, r.reason === "PRICE_GT_MRP" ? 422 : 404);
@@ -69,7 +69,17 @@ export class SellersController {
       pan: dto.pan,
       gstin: dto.gstin,
     });
-    if (!r.ok) throw new HttpException(r.reason, r.reason === "ALREADY_REGISTERED" ? 409 : 400);
+    if (!r.ok) {
+      const msgMap: Record<string, string> = {
+        INVALID_PAN: "Invalid PAN format. Expected 5 uppercase letters + 4 digits + 1 letter (e.g. ABCDE1234F).",
+        INVALID_GSTIN: "Invalid GSTIN format. Expected 15-character GSTIN (e.g. 09ABCDE1234F1Z5).",
+        ALREADY_REGISTERED: "Seller KYC is already registered for this account.",
+      };
+      throw new HttpException(
+        { error: r.reason, message: msgMap[r.reason] ?? r.reason },
+        r.reason === "ALREADY_REGISTERED" ? 409 : 400,
+      );
+    }
     await this.sellers.ensureSellerOwnerRole(user.sub);
     if (dto.autoApproveDev && process.env.NODE_ENV !== "production") {
       await this.sellers.devApproveForUser(user.sub);

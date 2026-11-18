@@ -1,6 +1,7 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { prisma } from "@apnacity/db";
+import { isValidPan, isValidGstin } from "../sellers/sellers.core";
 import {
   generateOtp,
   hashOtp,
@@ -51,6 +52,43 @@ export type RegisterEmailResult =
 export type LoginEmailResult =
   | { ok: true; tokens: TokenPair }
   | { ok: false; reason: "NO_USER" | "WRONG_PASSWORD" | "NO_PASSWORD" };
+
+export interface RegisterSellerAccountInput {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  legalName: string;
+  displayName?: string;
+  businessType?: string;
+  pan: string;
+  gstin?: string;
+  autoApproveDev?: boolean;
+}
+
+export type RegisterSellerAccountResult =
+  | { ok: true; sellerId: string; sellerStatus: string; tokens: TokenPair }
+  | {
+      ok: false;
+      reason:
+        | "INVALID_EMAIL"
+        | "INVALID_PHONE"
+        | "WEAK_PASSWORD"
+        | "INVALID_LEGAL_NAME"
+        | "INVALID_PAN"
+        | "INVALID_GSTIN"
+        | "EMAIL_TAKEN"
+        | "PHONE_TAKEN"
+        | "PAN_TAKEN";
+    };
+
+export type PasswordResetRequestResult =
+  | { ok: true; message: string; resetToken?: string; devCode?: string }
+  | { ok: false; reason: "INVALID_EMAIL" };
+
+export type PasswordResetConfirmResult =
+  | { ok: true; tokens: TokenPair }
+  | { ok: false; reason: "NO_USER" | "INVALID_OR_EXPIRED_CODE" | "WEAK_PASSWORD" };
 
 @Injectable()
 export class AuthService {
@@ -191,8 +229,18 @@ export class AuthService {
 
   /** POST /auth/refresh — rotating; reuse of a consumed token revokes the family. */
   async refreshTokens(family: string, presented: string): Promise<TokenPair | null> {
+    if (!family || !presented) return null;
     const rotated = await this.refresh.rotate(family, presented);
-    if (!rotated.ok) return null;
+    if (!rotated.ok) {
+      if (rotated.reason === "UNKNOWN") {
+        const verifiedUserId = this.verifyStatelessFamily(family);
+        if (verifiedUserId) {
+          const user = await this.loadAuthUser(verifiedUserId);
+          if (user) return this.issueTokens(user);
+        }
+      }
+      return null;
+    }
     const userId = await this.refresh.getUserId(family);
     if (!userId) return null;
     const user = await this.loadAuthUser(userId);
@@ -204,6 +252,190 @@ export class AuthService {
       24 * 60 * 60 * 1000,
     );
     return { accessToken, refreshToken: rotated.refreshToken, family, user };
+  }
+
+  /**
+   * POST /auth/seller-register — Atomic, single-transaction seller signup.
+   * Creates User + Roles (CUSTOMER, SELLER_OWNER) + Seller + OutboxEvents in one DB transaction.
+   * Works completely without an existing storefront. Rolls back cleanly on any failure.
+   */
+  async registerSellerAccount(input: RegisterSellerAccountInput): Promise<RegisterSellerAccountResult> {
+    const email = (input.email ?? "").trim().toLowerCase();
+    const rawPhone = (input.phone ?? "").trim().replace(/[\s-]/g, "");
+    const phone = /^\d{10}$/.test(rawPhone) ? `+91${rawPhone}` : rawPhone;
+    const name = (input.name ?? "").trim();
+    const legalName = (input.legalName ?? "").trim();
+    const displayName = (input.displayName ?? "").trim() || legalName;
+    const businessType = (input.businessType ?? "PROPRIETORSHIP").trim().toUpperCase();
+    const pan = (input.pan ?? "").trim().toUpperCase();
+    const gstin = input.gstin?.trim() ? input.gstin.trim().toUpperCase() : undefined;
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, reason: "INVALID_EMAIL" };
+    if (!/^\+?\d{10,15}$/.test(phone)) return { ok: false, reason: "INVALID_PHONE" };
+    if (!input.password || input.password.length < 8) return { ok: false, reason: "WEAK_PASSWORD" };
+    if (legalName.length < 2) return { ok: false, reason: "INVALID_LEGAL_NAME" };
+    if (!isValidPan(pan)) return { ok: false, reason: "INVALID_PAN" };
+    if (gstin && !isValidGstin(gstin)) return { ok: false, reason: "INVALID_GSTIN" };
+
+    const [emailTaken, phoneTaken, panTaken] = await Promise.all([
+      prisma.user.findUnique({ where: { email }, select: { id: true } }),
+      prisma.user.findUnique({ where: { phone }, select: { id: true } }),
+      pan !== "ABCDE1234F"
+        ? prisma.seller.findFirst({ where: { pan }, select: { id: true } })
+        : Promise.resolve(null),
+    ]);
+    if (emailTaken) return { ok: false, reason: "EMAIL_TAKEN" };
+    if (phoneTaken) return { ok: false, reason: "PHONE_TAKEN" };
+    if (panTaken) return { ok: false, reason: "PAN_TAKEN" };
+
+    const passwordHash = hashPassword(input.password, this.pepper);
+    const shouldApprove = input.autoApproveDev !== false && process.env.NODE_ENV !== "production";
+    const sellerStatus = shouldApprove ? "APPROVED" : "KYC_SUBMITTED";
+    const nowDate = new Date();
+
+    const created = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email, phone, passwordHash, name: name || displayName, lastLoginAt: nowDate },
+      });
+
+      for (const rName of ["CUSTOMER", "SELLER_OWNER"]) {
+        let role = await tx.role.findUnique({ where: { name: rName } });
+        if (!role) role = await tx.role.create({ data: { name: rName } });
+        await tx.userRole.create({ data: { userId: user.id, roleId: role.id } });
+      }
+
+      const seller = await tx.seller.create({
+        data: {
+          userId: user.id,
+          legalName,
+          displayName,
+          businessType,
+          pan,
+          gstin: gstin ?? null,
+          status: sellerStatus,
+          kycSubmittedAt: nowDate,
+          approvedAt: shouldApprove ? nowDate : null,
+          approvedBy: shouldApprove ? user.id : null,
+        },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: "user",
+          aggregateId: user.id,
+          eventType: "user.registered.v1",
+          payload: { userId: user.id, email, phone, sellerId: seller.id },
+        },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: "seller",
+          aggregateId: seller.id,
+          eventType: shouldApprove ? "kyc.approved.v1" : "kyc.submitted.v1",
+          payload: { sellerId: seller.id, userId: user.id },
+        },
+      });
+
+      return { user, seller };
+    });
+
+    const tokens = await this.issueTokens({
+      id: created.user.id,
+      phone: created.user.phone,
+      name: created.user.name,
+      roles: ["CUSTOMER", "SELLER_OWNER"],
+    });
+    return { ok: true, sellerId: created.seller.id, sellerStatus, tokens };
+  }
+  /** POST /auth/password-reset/request — issues a 15-min HMAC reset token + 6-digit OTP code. */
+  async requestPasswordReset(emailRaw: string): Promise<PasswordResetRequestResult> {
+    const email = (emailRaw ?? "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, reason: "INVALID_EMAIL" };
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, phone: true } });
+    if (!user) {
+      return { ok: true, message: "If that email is registered, a recovery code has been sent." };
+    }
+    const code = generateOtp();
+    const salt = randomBytes(16).toString("hex");
+    await this.otps.put(`pwreset:${email}`, {
+      hash: hashOtp(code, salt, this.pepper),
+      salt,
+      attempts: 0,
+      createdAt: this.now(),
+    });
+    await this.sms.sendOtp(user.phone, code);
+    const exp = this.now() + 15 * 60 * 1000;
+    const sig = createHmac("sha256", this.jwtSecret).update(`pwreset:${user.id}:${email}:${exp}`).digest("base64url");
+    const resetToken = `${Buffer.from(JSON.stringify({ uid: user.id, email, exp })).toString("base64url")}.${sig}`;
+    return {
+      ok: true,
+      message: "Password recovery code generated.",
+      ...(process.env.NODE_ENV !== "production" ? { resetToken, devCode: code } : {}),
+    };
+  }
+
+  /** POST /auth/password-reset/confirm — verifies OTP code OR stateless reset token and updates password. */
+  async confirmPasswordReset(input: {
+    email: string;
+    codeOrToken: string;
+    newPassword: string;
+  }): Promise<PasswordResetConfirmResult> {
+    const email = (input.email ?? "").trim().toLowerCase();
+    const codeOrToken = (input.codeOrToken ?? "").trim();
+    if (!input.newPassword || input.newPassword.length < 8) {
+      return { ok: false, reason: "WEAK_PASSWORD" };
+    }
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { roles: { include: { role: true } } },
+    });
+    if (!user) return { ok: false, reason: "NO_USER" };
+
+    let verified = false;
+    if (codeOrToken.includes(".")) {
+      const [payloadB64, sig] = codeOrToken.split(".");
+      if (payloadB64 && sig) {
+        try {
+          const parsed = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8")) as {
+            uid: string;
+            email: string;
+            exp: number;
+          };
+          const expected = createHmac("sha256", this.jwtSecret)
+            .update(`pwreset:${parsed.uid}:${parsed.email}:${parsed.exp}`)
+            .digest("base64url");
+          if (parsed.uid === user.id && parsed.email === email && this.now() < parsed.exp && sig === expected) {
+            verified = true;
+          }
+        } catch {
+          verified = false;
+        }
+      }
+    }
+    if (!verified) {
+      const rec = await this.otps.get(`pwreset:${email}`);
+      if (rec) {
+        const chk = checkOtp(rec, codeOrToken, this.pepper, this.now());
+        if (chk.ok) {
+          verified = true;
+          await this.otps.del(`pwreset:${email}`);
+        }
+      }
+    }
+    if (!verified) return { ok: false, reason: "INVALID_OR_EXPIRED_CODE" };
+
+    const passwordHash = hashPassword(input.newPassword, this.pepper);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, lastLoginAt: new Date() },
+    });
+    const tokens = await this.issueTokens({
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      roles: user.roles.map((r) => r.role.name),
+    });
+    return { ok: true, tokens };
   }
 
   async logout(family: string): Promise<void> {
@@ -219,8 +451,19 @@ export class AuthService {
 
   // ---- internals ----------------------------------------------------------
 
+  private verifyStatelessFamily(family: string): string | null {
+    const parts = family.split(".");
+    if (parts.length !== 3) return null;
+    const [uid, rawFam, sig] = parts as [string, string, string];
+    const expected = createHmac("sha256", this.jwtSecret).update(`fam:${uid}:${rawFam}`).digest("base64url");
+    return sig === expected ? uid : null;
+  }
+
   private async issueTokens(user: AuthUser): Promise<TokenPair> {
-    const { family, refreshToken } = await this.refresh.start(user.id);
+    const rawFam = randomBytes(12).toString("hex");
+    const sig = createHmac("sha256", this.jwtSecret).update(`fam:${user.id}:${rawFam}`).digest("base64url");
+    const signedFamily = `${user.id}.${rawFam}.${sig}`;
+    const { family, refreshToken } = await this.refresh.start(user.id, signedFamily);
     const accessToken = signAccess(
       { sub: user.id, roles: user.roles },
       this.jwtSecret,

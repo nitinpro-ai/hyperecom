@@ -5,43 +5,90 @@ import { clientApi, setSession, WEB_MARKETPLACE_URL } from "../../lib/session";
 
 export default function SellerLogin() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup" | "otp">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "otp" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("+91");
   const [otp, setOtp] = useState("");
   const [otpStage, setOtpStage] = useState<"phone" | "verify">("phone");
+  const [resetStage, setResetStage] = useState<"request" | "confirm">("request");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState("");
+  const [msgTone, setMsgTone] = useState<"err" | "ok">("err");
   const [busy, setBusy] = useState(false);
   const api = clientApi();
 
+  const pwScore =
+    (password.length >= 8 ? 1 : 0) +
+    (/[A-Z]/.test(password) && /[a-z]/.test(password) ? 1 : 0) +
+    (/\d/.test(password) ? 1 : 0) +
+    (/[^A-Za-z0-9]/.test(password) || password.length >= 12 ? 1 : 0);
+
   async function doLogin(e?: React.FormEvent, override?: { email: string; password: string }) {
     if (e) e.preventDefault();
-    setBusy(true); setMsg("");
+    setBusy(true); setMsg(""); setMsgTone("err");
     try {
-      const creds = override ?? { email: email.trim(), password };
+      const creds = override ?? { email: email.trim().toLowerCase(), password };
       const s = await api.loginEmail(creds);
       setSession(s);
       router.push("/");
     } catch (err) {
       const m = (err as Error).message || "";
-      setMsg(/401|NO_USER|WRONG_PASSWORD|NO_PASSWORD/.test(m) ? "Invalid email or password. New here? Switch to '✨ New Seller'." : m);
+      setMsg(/401|NO_USER|WRONG_PASSWORD|NO_PASSWORD/i.test(m)
+        ? "Invalid email or password. Forgot your password or need a new seller account?"
+        : m);
     } finally { setBusy(false); }
   }
 
   async function doSignup(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setMsg("");
+    setBusy(true); setMsg(""); setMsgTone("err");
     try {
-      const rawPhone = phone.trim().replace(/\s+/g, "");
-      const cleanPhone = rawPhone.startsWith("+") ? rawPhone : `+91${rawPhone}`;
-      const s = await api.register({ email: email.trim(), phone: cleanPhone, password, name: name.trim() || undefined });
+      const rawPhone = phone.trim().replace(/[\s-]/g, "");
+      const cleanPhone = /^\d{10}$/.test(rawPhone) ? `+91${rawPhone}` : rawPhone.startsWith("+") ? rawPhone : `+91${rawPhone}`;
+      const s = await api.register({ email: email.trim().toLowerCase(), phone: cleanPhone, password, name: name.trim() || undefined });
       setSession(s);
       router.push("/register");
     } catch (err) {
       const m = (err as Error).message || "";
       setMsg(/409|TAKEN|already/i.test(m) ? "That email or mobile number is already registered. Please Sign In instead." : `Could not register: ${m}`);
+    } finally { setBusy(false); }
+  }
+
+  async function handleRequestReset(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setMsg(""); setMsgTone("err");
+    try {
+      const r = await api.requestPasswordReset(email.trim().toLowerCase());
+      setResetStage("confirm");
+      if (r.devCode || r.resetToken) {
+        setResetCode(r.devCode ?? r.resetToken ?? "");
+      }
+      setMsgTone("ok");
+      setMsg(r.devCode ? `Recovery code generated (Dev auto-filled: ${r.devCode}). Enter your new password below.` : r.message);
+    } catch (err) {
+      setMsg((err as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  async function handleConfirmReset(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setMsg(""); setMsgTone("err");
+    try {
+      const s = await api.confirmPasswordReset({
+        email: email.trim().toLowerCase(),
+        codeOrToken: resetCode.trim(),
+        newPassword,
+      });
+      setSession(s);
+      setMsgTone("ok");
+      setMsg("Password updated! Redirecting to Seller Studio…");
+      router.push("/");
+    } catch (err) {
+      setMsg((err as Error).message);
     } finally { setBusy(false); }
   }
 
@@ -124,18 +171,28 @@ export default function SellerLogin() {
           </div>
 
           {mode === "login" && (
-            <form onSubmit={doLogin} className="mt-6 space-y-4">
+            <form onSubmit={doLogin} className="mt-6 space-y-4" aria-label="Seller Sign In Form">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-900">Welcome back, Partner</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Sign in with your registered merchant email and password.</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@yourshop.com" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <label htmlFor="login-email" className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                <input id="login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@yourshop.com" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="login-password" className="text-xs font-semibold text-slate-700">Password</label>
+                  <button type="button" onClick={() => { setMode("reset"); setResetStage("request"); setMsg(""); }} className="text-[11px] font-bold text-teal-700 hover:underline">
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <input id="login-password" type={showPw ? "text" : "password"} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full rounded-xl border border-slate-300 pl-3.5 pr-16 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20" />
+                  <button type="button" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                    {showPw ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
               <button type="submit" disabled={busy} className="w-full rounded-xl bg-teal-700 hover:bg-teal-800 py-3 text-sm font-bold text-white shadow-md shadow-teal-700/20 disabled:opacity-50 transition">
                 {busy ? "Signing in…" : "Sign In to Seller Studio →"}
@@ -152,40 +209,94 @@ export default function SellerLogin() {
                   <span className="font-normal text-amber-700">(demo_seller@apnacity.dev)</span>
                 </button>
                 <p className="text-center text-xs text-slate-500">
-                  Don&apos;t have a seller account yet?{" "}
-                  <button type="button" onClick={() => setMode("signup")} className="font-bold text-teal-700 hover:underline">
-                    Register as a New Seller →
-                  </button>
+                  New to ApnaCity?{" "}
+                  <a href="/register" className="font-bold text-teal-700 hover:underline">
+                    Complete Seller Registration →
+                  </a>
                 </p>
               </div>
             </form>
           )}
           {mode === "signup" && (
-            <form onSubmit={doSignup} className="mt-6 space-y-3.5">
+            <form onSubmit={doSignup} className="mt-6 space-y-3.5" aria-label="Quick Account Creation Form">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-900">Create Your Seller Account</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Step 1 of 3 — Create your login, then complete KYC &amp; launch your shop.</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create your login below, or use our{" "}
+                  <a href="/register" className="font-bold text-teal-700 underline">1-Step Full Seller &amp; KYC Registration</a>.
+                </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Your Full Name / Owner Name</label>
-                <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rajesh Bagga" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <label htmlFor="signup-name" className="block text-xs font-semibold text-slate-700 mb-1">Your Full Name / Owner Name *</label>
+                <input id="signup-name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rajesh Bagga" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Business Email Address</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@myshop.in" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <label htmlFor="signup-email" className="block text-xs font-semibold text-slate-700 mb-1">Business Email Address *</label>
+                <input id="signup-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@myshop.in" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number (WhatsApp / Order Alerts)</label>
-                <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+919876543210" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <label htmlFor="signup-phone" className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number (10 digits or +91) *</label>
+                <input id="signup-phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+919876543210" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Create Password (min 8 characters)</label>
-                <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                <label htmlFor="signup-password" className="block text-xs font-semibold text-slate-700 mb-1">Create Password (min 8 characters) *</label>
+                <div className="relative">
+                  <input id="signup-password" type={showPw ? "text" : "password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className="w-full rounded-xl border border-slate-300 pl-3.5 pr-16 py-2.5 text-sm outline-none focus:border-teal-600" />
+                  <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100">
+                    {showPw ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {password.length > 0 && (
+                  <div className="mt-1.5 flex items-center gap-1.5" aria-live="polite">
+                    {[1, 2, 3, 4].map((n) => (
+                      <span key={n} className={`h-1 flex-1 rounded-full ${pwScore >= n ? (pwScore >= 3 ? "bg-emerald-500" : "bg-amber-500") : "bg-slate-200"}`} />
+                    ))}
+                    <span className="text-[10px] font-bold text-slate-500">
+                      {pwScore <= 1 ? "Weak" : pwScore === 2 ? "Fair" : pwScore === 3 ? "Good" : "Strong"}
+                    </span>
+                  </div>
+                )}
               </div>
               <button type="submit" disabled={busy} className="w-full rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 py-3 text-sm font-bold text-white shadow-md shadow-teal-700/20 disabled:opacity-50 transition">
                 {busy ? "Creating Seller Account…" : "Create Account & Continue to KYC →"}
               </button>
             </form>
+          )}
+          {mode === "reset" && (
+            <div className="mt-6 space-y-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900">Reset Your Password</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Recover access to your merchant account in seconds.</p>
+              </div>
+              {resetStage === "request" ? (
+                <form onSubmit={handleRequestReset} className="space-y-3.5">
+                  <div>
+                    <label htmlFor="reset-email" className="block text-xs font-semibold text-slate-700 mb-1">Registered Email Address</label>
+                    <input id="reset-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@yourshop.com" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                  </div>
+                  <button type="submit" disabled={busy} className="w-full rounded-xl bg-teal-700 hover:bg-teal-800 py-3 text-sm font-bold text-white disabled:opacity-50">
+                    {busy ? "Sending Recovery Code…" : "Send Recovery Code →"}
+                  </button>
+                  <button type="button" onClick={() => setMode("login")} className="w-full text-center text-xs font-bold text-slate-500 hover:text-slate-800">
+                    ← Back to Sign In
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleConfirmReset} className="space-y-3.5">
+                  <div>
+                    <label htmlFor="reset-code" className="block text-xs font-semibold text-slate-700 mb-1">Recovery Code</label>
+                    <input id="reset-code" required value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="6-digit code" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-mono font-bold outline-none focus:border-teal-600" />
+                  </div>
+                  <div>
+                    <label htmlFor="reset-new-pw" className="block text-xs font-semibold text-slate-700 mb-1">New Password (min 8 characters)</label>
+                    <input id="reset-new-pw" type={showPw ? "text" : "password"} required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-teal-600" />
+                  </div>
+                  <button type="submit" disabled={busy} className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 py-3 text-sm font-bold text-white disabled:opacity-50">
+                    {busy ? "Updating Password…" : "Reset Password & Sign In →"}
+                  </button>
+                </form>
+              )}
+            </div>
           )}
 
           {mode === "otp" && (
@@ -214,7 +325,14 @@ export default function SellerLogin() {
           )}
 
           {msg && (
-            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-800">
+            <div
+              role={msgTone === "ok" ? "status" : "alert"}
+              className={`mt-4 rounded-xl border p-3 text-xs font-semibold ${
+                msgTone === "ok"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+            >
               {msg}
             </div>
           )}

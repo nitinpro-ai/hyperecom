@@ -6,7 +6,7 @@ import type { AccessClaims } from "../auth/auth.crypto";
 interface QuoteDto { deliveryFeePaiseByShop?: Record<string, number>; discountPaise?: number }
 interface PlaceDto { cityId: string; addressSnapshot: Record<string, unknown>; deliveryFeePaiseByShop?: Record<string, number>; discountPaise?: number }
 
-/** M13 — checkout HTTP. Authed; userId from the JWT. */
+/** M13 — checkout HTTP. Authed; userId from the JWT. Fees/discounts are server-side only — client-supplied values are ignored. */
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class CheckoutController {
@@ -14,14 +14,14 @@ export class CheckoutController {
 
   @Post("checkout/quote")
   async quote(@CurrentUser() u: AccessClaims, @Body() dto: QuoteDto) {
-    const q = await this.checkout.quote(u.sub, dto.deliveryFeePaiseByShop ?? {}, dto.discountPaise ?? 0);
+    const q = await this.checkout.quote(u.sub, {}, 0);
     if (!q) throw new HttpException("NO_OPEN_CART", 404);
     return q;
   }
 
   @Post("orders")
   async place(@CurrentUser() u: AccessClaims, @Body() dto: PlaceDto) {
-    const r = await this.checkout.placeOrder({ userId: u.sub, cityId: dto.cityId, addressSnapshot: dto.addressSnapshot, deliveryFeePaiseByShop: dto.deliveryFeePaiseByShop, discountPaise: dto.discountPaise });
+    const r = await this.checkout.placeOrder({ userId: u.sub, cityId: dto.cityId, addressSnapshot: dto.addressSnapshot, });
     if (!r.ok) {
       if (r.reason === "INSUFFICIENT_STOCK") throw new HttpException({ error: "INSUFFICIENT_STOCK", shortfalls: r.shortfalls }, 422);
       throw new HttpException(r.reason, 409);

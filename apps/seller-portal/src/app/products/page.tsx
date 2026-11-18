@@ -60,6 +60,30 @@ export default function SellerProductsPage() {
     }
   }
 
+  async function uploadRowPhoto(r: ListingRow, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusyId(r.listingId); setMsg("");
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+      const api = clientApi();
+      const up = await api.uploadImageBase64({ mime: file.type || "image/jpeg", dataBase64, filename: file.name, shopId: r.shopId });
+      await api.updateSellerListing(r.listingId, { imageUrl: up.url });
+      setMsg(`📸 Updated photo for "${r.title}".`);
+      await load(shopId || undefined);
+    } catch (err) {
+      setMsg(`Error: ${(err as Error).message}`);
+    } finally {
+      setBusyId("");
+      e.target.value = "";
+    }
+  }
+
   async function toggleStatus(r: ListingRow) {
     setBusyId(r.listingId); setMsg("");
     try {
@@ -171,10 +195,25 @@ export default function SellerProductsPage() {
                     return (
                       <tr key={r.listingId} className="hover:bg-slate-50/70 transition">
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">{r.title}</div>
-                          <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">{r.categoryName}</span>
-                            {r.gtin && <span className="font-mono text-[11px] text-slate-400">GTIN: {r.gtin}</span>}
+                          <div className="flex items-center gap-3">
+                            <label className="relative h-12 w-12 shrink-0 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden grid place-items-center cursor-pointer group" title="Click to upload/change photo">
+                              {r.imageUrl ? (
+                                <img src={r.imageUrl} alt={r.title} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-lg">📷</span>
+                              )}
+                              <span className="absolute inset-0 bg-slate-900/60 text-white text-[9px] font-bold opacity-0 group-hover:opacity-100 grid place-items-center transition">
+                                Upload
+                              </span>
+                              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => uploadRowPhoto(r, e)} className="hidden" />
+                            </label>
+                            <div>
+                              <div className="font-bold text-slate-900">{r.title}</div>
+                              <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">{r.categoryName}</span>
+                                {r.gtin && <span className="font-mono text-[11px] text-slate-400">GTIN: {r.gtin}</span>}
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-xs">

@@ -6,7 +6,7 @@ export const PAYMENT_PROVIDER = Symbol("PAYMENT_PROVIDER");
 
 export type WebhookResult =
   | { ok: true; outcome: "CAPTURED" | "IGNORED_REPLAY" }
-  | { ok: false; reason: "BAD_SIGNATURE" | "UNKNOWN_PAYMENT" };
+  | { ok: false; reason: "BAD_SIGNATURE" | "UNKNOWN_PAYMENT" | "AMOUNT_MISMATCH" };
 
 /**
  * M15 — Payments. The webhook is the ONLY capture authority (manual edits
@@ -21,6 +21,13 @@ export class PaymentsService {
     const v = this.provider.verifyWebhook(rawBody, signature);
     if (!v.valid || !v.externalRef) return { ok: false, reason: "BAD_SIGNATURE" };
 
+    // resolve the payment first so an unknown ref is not recorded as "processed"
+    const payment = await prisma.payment.findFirst({ where: { providerOrderRef: v.externalRef } });
+    if (!payment) return { ok: false, reason: "UNKNOWN_PAYMENT" };
+    if (v.amountPaise !== undefined && BigInt(v.amountPaise) !== payment.amountPaise) {
+      return { ok: false, reason: "AMOUNT_MISMATCH" };
+    }
+
     // replay guard: unique (provider, eventType, externalRef)
     try {
       await prisma.webhookEvent.create({
@@ -30,12 +37,10 @@ export class PaymentsService {
           rawPayload: JSON.parse(rawBody), processedAt: new Date(),
         },
       });
-    } catch {
-      return { ok: true, outcome: "IGNORED_REPLAY" }; // duplicate → already processed
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2002") return { ok: true, outcome: "IGNORED_REPLAY" };
+      throw e;
     }
-
-    const payment = await prisma.payment.findFirst({ where: { providerOrderRef: v.externalRef } });
-    if (!payment) return { ok: false, reason: "UNKNOWN_PAYMENT" };
 
     if (v.status === "CAPTURED" && payment.status !== "CAPTURED") {
       await prisma.$transaction(async (tx) => {

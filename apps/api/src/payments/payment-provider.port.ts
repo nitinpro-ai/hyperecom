@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
  * Payment provider abstraction (M15). The place-order flow and webhook handler
@@ -20,7 +20,9 @@ export interface PaymentProviderPort {
   verifyWebhook(rawBody: string, signature: string): { valid: boolean; externalRef?: string; status?: string; amountPaise?: number };
 }
 
-const MOCK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET ?? "dev-webhook-secret";
+import { orDevDefault } from "../auth/auth.guard";
+
+const MOCK_SECRET = orDevDefault(process.env.PAYMENT_WEBHOOK_SECRET, "dev-webhook-secret", "PAYMENT_WEBHOOK_SECRET");
 
 @Injectable()
 export class MockPaymentProvider implements PaymentProviderPort {
@@ -38,7 +40,9 @@ export class MockPaymentProvider implements PaymentProviderPort {
 
   verifyWebhook(rawBody: string, signature: string) {
     const expected = createHmac("sha256", MOCK_SECRET).update(rawBody).digest("hex");
-    if (expected !== signature) return { valid: false };
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature ?? "");
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return { valid: false };
     try {
       const p = JSON.parse(rawBody) as { externalRef: string; status: string; amountPaise: number };
       return { valid: true, externalRef: p.externalRef, status: p.status, amountPaise: p.amountPaise };

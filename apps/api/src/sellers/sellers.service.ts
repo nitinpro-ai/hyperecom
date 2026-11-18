@@ -33,8 +33,10 @@ export type KycResult =
 @Injectable()
 export class SellersService {
   async register(input: RegisterSellerInput): Promise<RegisterResult> {
-    if (!isValidPan(input.pan)) return { ok: false, reason: "INVALID_PAN" };
-    if (input.gstin && !isValidGstin(input.gstin)) return { ok: false, reason: "INVALID_GSTIN" };
+    const pan = (input.pan ?? "").trim().toUpperCase();
+    const gstin = input.gstin?.trim() ? input.gstin.trim().toUpperCase() : undefined;
+    if (!isValidPan(pan)) return { ok: false, reason: "INVALID_PAN" };
+    if (gstin && !isValidGstin(gstin)) return { ok: false, reason: "INVALID_GSTIN" };
 
     const existing = await prisma.seller.findUnique({ where: { userId: input.userId } });
     if (existing) return { ok: false, reason: "ALREADY_REGISTERED" };
@@ -42,11 +44,11 @@ export class SellersService {
     const seller = await prisma.seller.create({
       data: {
         userId: input.userId,
-        legalName: input.legalName,
-        displayName: input.displayName,
-        businessType: input.businessType,
-        pan: input.pan,
-        gstin: input.gstin ?? null,
+        legalName: input.legalName.trim(),
+        displayName: (input.displayName || input.legalName).trim(),
+        businessType: (input.businessType || "PROPRIETORSHIP").trim().toUpperCase(),
+        pan,
+        gstin: gstin ?? null,
         status: "DRAFT",
       },
     });
@@ -221,7 +223,7 @@ export class SellersService {
       include: {
         shop: { select: { id: true, name: true, slug: true } },
         product: {
-          select: { id: true, name: true, slug: true, gtin: true, category: { select: { id: true, name: true } } },
+          select: { id: true, name: true, slug: true, gtin: true, attributes: true, category: { select: { id: true, name: true } } },
         },
         variants: { orderBy: { sellerSku: "asc" } },
       },
@@ -241,6 +243,7 @@ export class SellersService {
     return rows.map((r) => {
       const v = r.variants[0];
       const st = v ? stockByLv.get(v.id) : undefined;
+      const attrs = (r.product.attributes ?? null) as { imageUrl?: string; images?: string[] } | null;
       return {
         listingId: r.id,
         shopId: r.shopId,
@@ -250,6 +253,7 @@ export class SellersService {
         title: r.titleOverride ?? r.product.name,
         productSlug: r.product.slug,
         gtin: r.product.gtin,
+        imageUrl: attrs?.imageUrl ?? attrs?.images?.[0] ?? null,
         categoryId: r.product.category.id,
         categoryName: r.product.category.name,
         status: r.status,
@@ -264,18 +268,28 @@ export class SellersService {
       };
     });
   }
-  /** Inline-update a seller listing's price, MRP, stock, or status. */
+  /** Inline-update a seller listing's price, MRP, stock, status, or imageUrl. */
   async updateSellerListing(
     userId: string,
     listingId: string,
-    dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED" },
+    dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED"; imageUrl?: string },
   ) {
     const seller = await prisma.seller.findUnique({ where: { userId }, include: { shops: { select: { id: true } } } });
     if (!seller) return { ok: false as const, reason: "NOT_SELLER" };
     const shopIds = new Set(seller.shops.map((s) => s.id));
 
-    const listing = await prisma.sellerListing.findUnique({ where: { id: listingId }, include: { variants: true } });
+    const listing = await prisma.sellerListing.findUnique({ where: { id: listingId }, include: { variants: true, product: { select: { id: true, attributes: true } } } });
     if (!listing || !shopIds.has(listing.shopId)) return { ok: false as const, reason: "NOT_FOUND" };
+
+    if (dto.imageUrl !== undefined) {
+      const prevAttrs = (listing.product.attributes && typeof listing.product.attributes === "object")
+        ? (listing.product.attributes as Record<string, unknown>)
+        : {};
+      await prisma.product.update({
+        where: { id: listing.productId },
+        data: { attributes: { ...prevAttrs, imageUrl: dto.imageUrl } as object },
+      });
+    }
 
     const v = listing.variants[0];
     if (v && (dto.pricePaise != null || dto.mrpPaise != null)) {

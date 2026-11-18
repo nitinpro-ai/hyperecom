@@ -82,7 +82,7 @@ initially (owner decision 2026-11-05)**.
 
 - [ ] DLT SMS sender + template registration (blocks OTP at Step 4 go-live)
 - [ ] Cashfree sandbox account
-- [ ] Rotate GitHub PAT (ghp_…) and weak homelab passwords before any exposure
+- [ ] Rotate GitHub PAT and weak homelab passwords before any exposure
 - [ ] Automate nightly `pg_dump` of cluster postgres (CronJob — add with Step 2)
 - [ ] **MinIO image unpullable** — `minio/minio:latest` fails on the node (Docker Hub rate-limit; pull returns HTML → ErrImagePull). **No longer blocks dev:** media runs on the disk driver (`MEDIA_STORAGE_DRIVER=disk`). For S3/MinIO later, fix the pull (docker login on the VM, or mirror into `localhost:32000`) OR use Cloudflare R2 (no image needed) and set `MEDIA_STORAGE_DRIVER=s3` + S3_* env.
 - [ ] **Prod DB role must be non-superuser** — `apnacity` is SUPERUSER and bypasses RLS; create a non-superuser app role (verified with `app_rls`) for the API connection before any real tenant data.

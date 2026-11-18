@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PaymentsService, PAYMENT_PROVIDER } from "./payments.service";
 import { MockPaymentProvider } from "./payment-provider.port";
+import { PaymentsController } from "./payments.controller";
 import { AuthModule } from "../auth/auth.module";
 
 /**
@@ -10,6 +11,7 @@ import { AuthModule } from "../auth/auth.module";
  */
 @Module({
   imports: [AuthModule],
+  controllers: [PaymentsController],
   providers: [
     PaymentsService,
     MockPaymentProvider,

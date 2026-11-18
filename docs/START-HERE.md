@@ -20,7 +20,7 @@
 | Old planning folder | `/Users/D073341/work/cline/apnacity-hyperlocal-ecom` — retired; holds local-only `gitrepo/info.md` (token) |
 | Business decisions | ⚠️ 6 defaults assumed — need confirmation (§4 below) |
 | External registrations (DLT, gateway, entity) | ❌ not started — **longest lead time, start today** |
-| GitHub token rotation | ⚠️ **PENDING** — token `ghp_ZlpU…` was shared in plaintext; revoke + create new (SSH recommended) |
+| GitHub token rotation | ⚠️ **PENDING** — a GitHub PAT was shared in plaintext; revoke + create new (SSH recommended) |
 | Local toolchain | ✅ Node 26 · ✅ pnpm 12.16.1 (installed via `npm i -g pnpm`) · ❌ **Docker Desktop NOT installed** (needed for `docker compose up -d` in Step 2 — install from docker.com) |
 | **Code — Step 1 scaffold** | ✅ **DONE** — monorepo builds green: typecheck 18/18, build 11/11, tests pass, `GET /v1/health` returns ok (NestJS API + 3 Next.js apps + 7 packages + docker-compose + CI workflow + DEVELOPMENT.md) |
 | **Build/test server** | ✅ **DEPLOYED & VERIFIED (2026-11-05)** — homelab MicroK8s @ 192.168.2.224. **Live LAN URLs:** api `http://192.168.2.224:30400/v1/health` (health OK) · web `:30280` · seller `:30281` · admin `:30282` · postgres `:30432`. MinIO deferred (Docker Hub rate-limit; needed Step 5). Full state/gotchas/day-2 commands: `infrastructure/CLUSTER.md` |

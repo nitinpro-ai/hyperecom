@@ -24,12 +24,12 @@ const SIMILARITY_THRESHOLD = 0.75; // spec: trigram ≥ 0.75 → match queue
 
 @Injectable()
 export class CatalogService {
-  /** Public category tree (active). */
+  /** Public category tree (active, excluding zz-* test categories). */
   async categoryTree() {
     const cats = await prisma.category.findMany({
-      where: { isActive: true },
+      where: { isActive: true, NOT: { slug: { startsWith: "zz-" } } },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, parentId: true, name: true, slug: true, pathText: true },
+      select: { id: true, parentId: true, name: true, slug: true, pathText: true, attributeSchema: true },
     });
     return cats;
   }

@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { clearSession, WEB_MARKETPLACE_URL } from "../lib/session";
+import { logoutSession, WEB_MARKETPLACE_URL } from "../lib/session";
 
 export interface SellerShellProps {
   active: "dashboard" | "products" | "new-product" | "onboarding";
@@ -52,7 +52,12 @@ export function SellerShell({
                 <p className="text-xs text-teal-200/75">अपनी दुकान, ऑनलाइन</p>
               </div>
             </a>
-            <button onClick={() => { clearSession(); location.href = "/login"; }} className="lg:hidden rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white/80">
+            <button
+              type="button"
+              aria-label="Sign out of Seller Studio"
+              onClick={async () => { await logoutSession(); location.href = "/login"; }}
+              className="lg:hidden rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white/80"
+            >
               Sign out
             </button>
           </div>
@@ -136,7 +141,9 @@ export function SellerShell({
               <div className="text-[11px] text-slate-400">ApnaCity Partner</div>
             </div>
             <button
-              onClick={() => { clearSession(); location.href = "/login"; }}
+              type="button"
+              aria-label="Log out of Seller Studio"
+              onClick={async () => { await logoutSession(); location.href = "/login"; }}
               className="rounded-lg border border-white/15 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white transition"
             >
               Logout

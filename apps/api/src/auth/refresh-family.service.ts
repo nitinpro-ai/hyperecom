@@ -51,8 +51,8 @@ export class RefreshFamilyService {
   }
 
   /** Start a new family at login. */
-  async start(userId: string): Promise<{ family: string; refreshToken: string }> {
-    const family = newFamilyId();
+  async start(userId: string, customFamily?: string): Promise<{ family: string; refreshToken: string }> {
+    const family = customFamily ?? newFamilyId();
     const refreshToken = newRefreshToken();
     await this.store.put(family, {
       userId,

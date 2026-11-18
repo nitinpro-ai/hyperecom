@@ -4,6 +4,7 @@ import { config as loadDotenv } from "dotenv";
 import { loadEnv } from "@apnacity/config";
 import { AppModule } from "./app.module";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 
 // Load .env BEFORE validation — tsx does not auto-load it (Next.js apps do).
 // Prefer a local apps/api/.env, fall back to the repo root .env.
@@ -21,7 +22,12 @@ for (const candidate of [".env", "../../.env"]) {
 async function bootstrap(): Promise<void> {
   const env = loadEnv(); // throws on invalid/missing config (fail-fast)
 
-  const app = await NestFactory.create(AppModule, { logger: ["log", "warn", "error"] });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ["log", "warn", "error"],
+    rawBody: true,
+  });
+  app.useBodyParser("json", { limit: "10mb" });
+  app.useBodyParser("urlencoded", { extended: true, limit: "10mb" });
   app.setGlobalPrefix("v1");
   app.enableShutdownHooks();
 

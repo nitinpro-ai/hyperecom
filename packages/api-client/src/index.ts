@@ -50,9 +50,16 @@ export function createApiClient({ baseUrl, getAccessToken, refreshAccessToken }:
 
     // --- M07 catalog (public reads) ---
     categories: () =>
-      request<Array<{ id: string; parentId: string | null; name: string; slug: string; pathText: string }>>(
-        "/categories",
-      ),
+      request<
+        Array<{
+          id: string;
+          parentId: string | null;
+          name: string;
+          slug: string;
+          pathText: string;
+          attributeSchema?: Array<{ key: string; type: string; values?: string[]; required?: boolean }> | null;
+        }>
+      >("/categories"),
     product: (id: string) =>
       request<{
         id: string; name: string; slug: string; description: string | null; gtin: string | null;
@@ -88,8 +95,30 @@ export function createApiClient({ baseUrl, getAccessToken, refreshAccessToken }:
       post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/otp/verify", { phone, otp, name }),
     register: (dto: { email: string; phone: string; password: string; name?: string }) =>
       post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/register", dto),
+    registerSellerAccount: (dto: {
+      name: string;
+      email: string;
+      phone: string;
+      password: string;
+      legalName: string;
+      displayName?: string;
+      businessType?: string;
+      pan: string;
+      gstin?: string;
+      autoApproveDev?: boolean;
+    }) =>
+      post<{
+        sellerId: string;
+        sellerStatus: string;
+        tokens: { accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } };
+      }>("/auth/seller-register", dto),
     loginEmail: (dto: { email: string; password: string }) =>
       post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/login", dto),
+    requestPasswordReset: (email: string) =>
+      post<{ ok: boolean; message: string; resetToken?: string; devCode?: string }>("/auth/password-reset/request", { email }),
+    confirmPasswordReset: (dto: { email: string; codeOrToken: string; newPassword: string }) =>
+      post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/password-reset/confirm", dto),
+    logout: (family: string) => post<void>("/auth/logout", { family }),
     me: () => request<{ id: string; phone: string; name: string; roles: Array<{ role: { name: string }; cityId: string | null; shopId: string | null }> }>("/me"),
 
     // --- M04/M05 seller onboarding + Seller Studio ---
@@ -123,12 +152,15 @@ export function createApiClient({ baseUrl, getAccessToken, refreshAccessToken }:
       request<Array<{
         listingId: string; shopId: string; shopName: string; shopSlug: string;
         productId: string; title: string; productSlug: string; gtin: string | null;
+        imageUrl: string | null;
         categoryId: string; categoryName: string; status: string; listedAt: string | null;
         listingVariantId: string | null; variantId: string | null; sellerSku: string;
         mrpPaise: number; pricePaise: number; stockOnHand: number; stockReserved: number;
       }>>(`/sellers/me/listings${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ""}`),
-    updateSellerListing: (listingId: string, dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED" }) =>
+    updateSellerListing: (listingId: string, dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED"; imageUrl?: string }) =>
       patch<{ ok: boolean }>(`/sellers/me/listings/${listingId}`, dto),
+    uploadImageBase64: (dto: { mime: string; dataBase64: string; filename?: string; shopId?: string; kind?: string }) =>
+      post<{ mediaId: string; url: string; mime: string; sizeBytes: number }>("/media/upload-base64", dto),
     sellerOrders: (shopId?: string) =>
       request<Array<{
         id: string; sellerOrderNo: string; orderId: string; orderNo: string;

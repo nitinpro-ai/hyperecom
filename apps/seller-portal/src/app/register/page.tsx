@@ -6,9 +6,17 @@ import { SellerShell } from "../../components/seller-shell";
 
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
+function generateSamplePan(): string {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const pickL = (n: number) => Array.from({ length: n }, () => letters[Math.floor(Math.random() * letters.length)]).join("");
+  const pickD = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join("");
+  return `${pickL(5)}${pickD(4)}${pickL(1)}`;
+}
+
 export default function SellerRegister() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [showPw, setShowPw] = useState(false);
   const [acct, setAcct] = useState({ name: "", email: "", phone: "+91", password: "" });
   const [kyc, setKyc] = useState({
     legalName: "",
@@ -172,16 +180,16 @@ export default function SellerRegister() {
       setMsg({
         type: "ok",
         text: kyc.autoApproveDev
-          ? "Seller KYC registered & Instant-Approved! Now launch your city shop in Step 3."
-          : "Seller KYC submitted! Approve KYC to open your shop.",
+          ? "🎉 Seller KYC registered & approved! Your seller account is ready — enter Seller Studio now or optionally open a storefront below."
+          : "Seller KYC submitted! Your seller account is ready.",
       });
-      setStep(3);
+      setStep(2);
     } catch (err) {
       const m = (err as Error).message || "";
       if (/409|ALREADY_REGISTERED/i.test(m)) {
         await refreshState();
-        setStep(3);
-        setMsg({ type: "ok", text: "Your Seller KYC is already registered! Proceed to Step 3 to open your shop." });
+        setStep(2);
+        setMsg({ type: "ok", text: "Your Seller KYC is already registered! You can enter Seller Studio or open a shop." });
       } else {
         setMsg({ type: "err", text: `KYC registration failed: ${m}` });
       }
@@ -310,12 +318,17 @@ export default function SellerRegister() {
                     <input type="email" required value={acct.email} onChange={(e) => setAcct({ ...acct, email: e.target.value })} placeholder="owner@shop.in" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Password (min 8 chars)</label>
-                    <input type="password" required minLength={8} value={acct.password} onChange={(e) => setAcct({ ...acct, password: e.target.value })} placeholder="••••••••" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm" />
+                    <label htmlFor="reg-password" className="block text-xs font-semibold text-slate-700 mb-1">Password (min 8 chars) *</label>
+                    <div className="relative">
+                      <input id="reg-password" type={showPw ? "text" : "password"} required minLength={8} value={acct.password} onChange={(e) => setAcct({ ...acct, password: e.target.value })} placeholder="••••••••" className="w-full rounded-xl border border-slate-300 pl-3.5 pr-16 py-2.5 text-sm" />
+                      <button type="button" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100">
+                        {showPw ? "Hide" : "Show"}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button type="submit" disabled={busy} className="rounded-xl bg-teal-700 hover:bg-teal-800 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">
-                  {busy ? "Creating Account…" : "Create Account & Continue →"}
+                  {busy ? "Creating Account…" : "Create Account & Continue to KYC →"}
                 </button>
               </form>
             )}
@@ -324,14 +337,26 @@ export default function SellerRegister() {
         {step === 2 && (
           <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
             {sellerInfo ? (
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Business KYC Registered: {sellerInfo.displayName}</h2>
-                  <p className="text-xs text-slate-500">Current verification status: <b className="text-teal-700">{sellerInfo.status}</b></p>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-emerald-700 text-lg font-extrabold">✓</span>
+                    <div>
+                      <h2 className="text-lg font-extrabold text-slate-900">Seller Account Ready: {sellerInfo.displayName}</h2>
+                      <p className="text-xs text-slate-500">
+                        KYC Verification Status: <b className="text-emerald-700">{sellerInfo.status}</b> · Storefront is optional and can be added anytime.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <a href="/" className="rounded-xl bg-gradient-to-r from-teal-700 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 px-5 py-2.5 text-xs font-extrabold text-white shadow-sm">
+                      🚀 Enter Seller Studio Dashboard →
+                    </a>
+                    <button type="button" onClick={() => setStep(3)} className="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700">
+                      Optional: Open City Storefront →
+                    </button>
+                  </div>
                 </div>
-                <button type="button" onClick={() => setStep(3)} className="rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white">
-                  Continue to Step 3 (Open Shop) →
-                </button>
               </div>
             ) : (
               <form onSubmit={handleStep2Kyc} className="space-y-4">
@@ -371,8 +396,8 @@ export default function SellerRegister() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-700">PAN Number (10 chars) *</label>
-                      <button type="button" onClick={() => setKyc({ ...kyc, pan: "ABCDE1234F" })} className="text-[11px] font-bold text-teal-700 hover:underline">
-                        Use sample PAN
+                      <button type="button" onClick={() => setKyc({ ...kyc, pan: generateSamplePan() })} className="text-[11px] font-bold text-teal-700 hover:underline">
+                        Generate valid PAN
                       </button>
                     </div>
                     <input required maxLength={10} value={kyc.pan} onChange={(e) => setKyc({ ...kyc, pan: e.target.value.toUpperCase() })} placeholder="ABCDE1234F" className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-mono uppercase" />

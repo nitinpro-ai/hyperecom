@@ -8,6 +8,15 @@ import {
 } from "@nestjs/common";
 import { verifyAccess, type AccessClaims } from "./auth.crypto";
 
+/** Dev-only fallbacks are allowed outside production; in production a missing value is fatal. */
+export function orDevDefault(value: string | undefined, devDefault: string, name: string): string {
+  if (value) return value;
+  if (process.env.NODE_ENV === "production") throw new Error(`${name} must be set in production`);
+  return devDefault;
+}
+export const jwtSecret = (): string =>
+  orDevDefault(process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET, "dev-secret", "JWT_ACCESS_SECRET");
+
 /** Routes decorated @Public() skip the JWT guard (e.g. /auth/otp/*). */
 export const IS_PUBLIC = "isPublic";
 export const Public = () => SetMetadata(IS_PUBLIC, true);
@@ -27,7 +36,7 @@ export class JwtAuthGuard implements CanActivate {
   /** No constructor DI: read the secret at use time so Nest never tries to
    *  resolve a param (defaulted params still look injectable in compiled builds). */
   private get secret(): string {
-    return process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET ?? "dev-secret";
+    return jwtSecret();
   }
 
   canActivate(ctx: ExecutionContext): boolean {

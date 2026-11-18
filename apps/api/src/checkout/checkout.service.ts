@@ -181,12 +181,12 @@ export class CheckoutService {
 
   private async nextSeq(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]): Promise<number> {
     const key = `order_seq_${new Date().getUTCFullYear()}`;
-    const row = await tx.systemCheck.upsert({
-      where: { key }, update: { value: undefined }, create: { key, value: "0" },
-    });
-    const next = Number.parseInt(row.value ?? "0", 10) + 1;
-    await tx.systemCheck.update({ where: { key }, data: { value: String(next) } });
-    return next;
+    await tx.systemCheck.upsert({ where: { key }, update: {}, create: { key, value: "0" } });
+    // single atomic statement: row lock serialises concurrent order placements
+    const rows = await tx.$queryRaw<Array<{ value: string }>>`
+      UPDATE system_checks SET value = (COALESCE(value, '0')::int + 1)::text, updated_at = now()
+      WHERE key = ${key} RETURNING value`;
+    return Number.parseInt(rows[0]!.value, 10);
   }
 }
 

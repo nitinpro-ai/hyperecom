@@ -31,6 +31,22 @@ export function clearSession(): void {
   localStorage.removeItem(KEY);
 }
 
+export async function logoutSession(): Promise<void> {
+  const cur = getSession();
+  clearSession();
+  if (cur?.family) {
+    try {
+      await fetch(`${BASE}/v1/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ family: cur.family }),
+      });
+    } catch {
+      // Ignore network errors during logout cleanup
+    }
+  }
+}
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://192.168.2.224:30400";
 export const WEB_MARKETPLACE_URL =
   process.env.NEXT_PUBLIC_WEB_BASE_URL ?? "http://192.168.2.224:30280";
