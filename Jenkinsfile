@@ -70,8 +70,7 @@ pipeline {
       steps { sh 'pnpm build' }
     }
 
-    stage('Deploy (main only)') {
-      when { branch 'main' }
+    stage('Deploy to Cluster') {
       steps {
         sh '''
           set -e
@@ -83,6 +82,7 @@ pipeline {
           # in-cluster auth via the agent service account
           "$KBIN/kubectl" -n apnacity rollout restart deploy/api deploy/web deploy/seller-portal deploy/admin-portal
           "$KBIN/kubectl" -n apnacity rollout status deploy/api --timeout=180s
+          "$KBIN/kubectl" -n apnacity rollout status deploy/seller-portal --timeout=180s
         '''
       }
     }

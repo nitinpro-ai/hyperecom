@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CityPicker } from "./city-picker";
 
 export const inr = (paise: number | null | undefined): string =>
   paise == null ? "—" : "₹" + Math.round(paise / 100).toLocaleString("en-IN");
@@ -15,11 +16,7 @@ export function TopBar({ city = "Bijnor", state = "Uttar Pradesh", cartCount = 0
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-surface">A</span>
           <span className="hidden sm:inline">ApnaCity</span>
         </a>
-        <button className="flex shrink-0 items-center gap-1 rounded-full border border-line px-2.5 py-1.5 text-xs font-medium text-ink-2 hover:border-brand sm:text-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-          <span className="max-w-24 truncate">{city}</span>
-          <span className="text-ink-3">▾</span>
-        </button>
+        <CityPicker initialCity={city} />
         <form action="/search" className="flex min-w-0 flex-1 items-center rounded-full border border-line bg-surface focus-within:border-brand">
           <svg className="ml-3 shrink-0 text-ink-3" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input name="q" className="w-full bg-transparent px-2 py-2 text-sm outline-none placeholder:text-ink-3" placeholder="Search shirts, mobiles, grocery…" />

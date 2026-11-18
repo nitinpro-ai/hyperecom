@@ -25,6 +25,18 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix("v1");
   app.enableShutdownHooks();
 
+  // CORS — browser apps (web :30280, seller :30281, admin :30282) are different
+  // origins from the API (:30400), so without this every client fetch fails with
+  // "Failed to fetch". Explicit allowlist (not "*") since requests carry bearer
+  // tokens. Origins come from CORS_ORIGINS (comma-separated); prod sets real hosts.
+  const corsOrigins = env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean);
+  app.enableCors({
+    origin: corsOrigins,
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  });
+
   // Container port: PORT env (k8s sets 4000), default 4000. API_BASE_URL is the
   // EXTERNAL address (NodePort/ingress) and must NOT drive the listen port.
   const port = Number.parseInt(process.env.PORT ?? "4000", 10);

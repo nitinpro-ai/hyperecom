@@ -1,11 +1,17 @@
 import { createApiClient } from "@apnacity/api-client";
 
 /**
- * Server-side API client for the web app. Base URL from env (defaults to the
- * dev API). Reads are public (no token). During local dev before the API is
- * redeployed, callers use `safe()` to fall back to demo data so pages render.
+ * Server-side API client for the web app. Base URL resolution (first set wins):
+ *   1. API_BASE_URL            — explicit server-to-server override (e.g. in-cluster svc)
+ *   2. NEXT_PUBLIC_API_BASE_URL — baked at build (dev cluster NodePort); works even when
+ *      the web pod has no env set, which is why server reads were falling back to demo.
+ *   3. http://localhost:4000   — local dev default
+ * Reads are public (no token). Callers use `safe()` to fall back to demo data.
  */
-const baseUrl = process.env.API_BASE_URL ?? "http://localhost:4000";
+const baseUrl =
+  process.env.API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:4000";
 
 export const api = createApiClient({ baseUrl });
 

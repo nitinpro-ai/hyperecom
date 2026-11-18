@@ -3,7 +3,17 @@
 > **DURABLE MEMORY — read this before touching the cluster.** Any session (any
 > model/agent/human) must treat this file as the source of truth for the dev
 > environment. Update it after every infrastructure change + commit.
-> Last updated: 2026-11-17 · **Status: COMPLETE CLICKABLE DEV SITE LIVE ✅** — all 32 modules + full customer UI (home/login/search/cart/checkout/orders) + seller portal (register/KYC/shop/product-upload) deployed. End-to-end purchase verified live: OTP login→search→PDP→cart→checkout→order (APN-2026-000017). Rich seed: 6 categories, 8 shops, 26 products.
+> Last updated: 2026-11-17 · **Status: COMPLETE CLICKABLE DEV SITE LIVE ✅** — all 32 modules + full customer UI (home/login/register/search/cart/checkout/orders) + seller portal (register/KYC/shop/product-upload) deployed. **Front page fully interactive** (city picker, category chips, hero/See-all links, data-driven shop cards — no inert elements). **Email+mobile registration live** (`POST /auth/register`, `POST /auth/login`; scrypt password; CUSTOMER role; verified live: register→JWT, login 200, dup email 409, wrong-pw 401). Empty-query search now **browse-lists** all active listings (powers the "All" chip + shop browse). Rich seed: 6 categories, 8 shops, 26 products.
+
+## Deploy gotcha reinforced 2026-11-17 (hit again)
+
+- `deploy-dev.sh` does `kubectl apply` (manifests `unchanged` for `:latest`) but **does NOT
+  `rollout restart`** — so new images are pushed but old pods keep running. After the script's
+  IMAGES_DONE, you MUST run
+  `kubectl -n apnacity rollout restart deploy/api deploy/web deploy/seller-portal deploy/admin-portal`
+  (this is gotcha #2 below). Verify by pod AGE = now, not the previous deploy's timestamp.
+  The script's `6/6 wait` also blocks ~180s on the deferred `minio` ImagePullBackOff (harmless, `|| true`).
+
 
 ## Deploy gotchas learned 2026-11-16 (MUST avoid next time)
 

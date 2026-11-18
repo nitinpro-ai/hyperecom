@@ -8,25 +8,54 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { prisma } from "@apnacity/db";
 import { ShopsService } from "./shops.service";
-import { JwtAuthGuard } from "../auth/auth.guard";
+import { JwtAuthGuard, CurrentUser } from "../auth/auth.guard";
+import type { AccessClaims } from "../auth/auth.crypto";
 
 interface CreateShopDto {
-  sellerId: string;
+  sellerId?: string;
   cityId: string;
   name: string;
   description?: string;
 }
 
-/** M05/M06 — shop creation + public tenant resolution. */
+/** M05/M06 — shop creation + public tenant resolution + public cities list. */
 @Controller()
 export class ShopsController {
   constructor(@Inject(ShopsService) private readonly shops: ShopsService) {}
 
+  @Get("cities")
+  async cities() {
+    const rows = await prisma.city.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, slug: true, state: { select: { name: true, code: true } } },
+    });
+    return rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      stateName: c.state.name,
+      stateCode: c.state.code,
+    }));
+  }
+
   @Post("shops")
   @UseGuards(JwtAuthGuard)
-  async create(@Body() dto: CreateShopDto) {
-    const r = await this.shops.create(dto);
+  async create(@CurrentUser() user: AccessClaims, @Body() dto: CreateShopDto) {
+    let sellerId = dto.sellerId;
+    if (!sellerId) {
+      const seller = await prisma.seller.findUnique({ where: { userId: user.sub } });
+      if (!seller) throw new HttpException("SELLER_NOT_FOUND", 404);
+      sellerId = seller.id;
+    }
+    const r = await this.shops.create({
+      sellerId,
+      cityId: dto.cityId,
+      name: dto.name,
+      description: dto.description,
+    });
     if (!r.ok) {
       const code = r.reason === "SELLER_NOT_APPROVED" ? 403 : 404;
       throw new HttpException(r.reason, code);

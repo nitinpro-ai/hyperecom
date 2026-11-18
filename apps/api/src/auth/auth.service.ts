@@ -5,6 +5,8 @@ import {
   generateOtp,
   hashOtp,
   checkOtp,
+  hashPassword,
+  verifyPassword,
   signAccess,
   OTP_MAX_ATTEMPTS,
   OTP_LOCK_MS,
@@ -41,6 +43,14 @@ export type RequestOtpResult =
 export type VerifyOtpResult =
   | { ok: true; tokens: TokenPair }
   | { ok: false; reason: "LOCKED" | "EXPIRED" | "WRONG" | "NO_OTP"; attemptsLeft?: number };
+
+export type RegisterEmailResult =
+  | { ok: true; tokens: TokenPair }
+  | { ok: false; reason: "EMAIL_TAKEN" | "PHONE_TAKEN" };
+
+export type LoginEmailResult =
+  | { ok: true; tokens: TokenPair }
+  | { ok: false; reason: "NO_USER" | "WRONG_PASSWORD" | "NO_PASSWORD" };
 
 @Injectable()
 export class AuthService {
@@ -101,6 +111,84 @@ export class AuthService {
     return { ok: true, tokens };
   }
 
+  /**
+   * POST /auth/register — email + password registration (dev-friendly, no SMS).
+   * The form also collects a mobile number (users.phone is required + unique).
+   * Mirrors findOrCreateUser's tx (user + CUSTOMER role + user.registered.v1),
+   * but with email + scrypt passwordHash and a caller-provided phone. Both email
+   * and phone are unique → report which collides.
+   */
+  async registerEmail(input: {
+    email: string;
+    phone: string;
+    password: string;
+    name?: string;
+  }): Promise<RegisterEmailResult> {
+    const email = input.email.trim().toLowerCase();
+    const phone = input.phone.trim();
+    const [emailTaken, phoneTaken] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.user.findUnique({ where: { phone } }),
+    ]);
+    if (emailTaken) return { ok: false, reason: "EMAIL_TAKEN" };
+    if (phoneTaken) return { ok: false, reason: "PHONE_TAKEN" };
+
+    const passwordHash = hashPassword(input.password, this.pepper);
+    const created = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          phone,
+          passwordHash,
+          name: input.name?.trim() || "ApnaCity User",
+          lastLoginAt: new Date(),
+        },
+      });
+      const customer = await tx.role.findUnique({ where: { name: "CUSTOMER" } });
+      if (customer) {
+        await tx.userRole.create({ data: { userId: user.id, roleId: customer.id } });
+      }
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: "user",
+          aggregateId: user.id,
+          eventType: "user.registered.v1",
+          payload: { userId: user.id, email, phone },
+        },
+      });
+      return user;
+    });
+    const tokens = await this.issueTokens({
+      id: created.id,
+      phone: created.phone,
+      name: created.name,
+      roles: ["CUSTOMER"],
+    });
+    return { ok: true, tokens };
+  }
+
+  /** POST /auth/login — email + password login. */
+  async loginEmail(input: { email: string; password: string }): Promise<LoginEmailResult> {
+    const email = input.email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { roles: { include: { role: true } } },
+    });
+    if (!user) return { ok: false, reason: "NO_USER" };
+    if (!user.passwordHash) return { ok: false, reason: "NO_PASSWORD" };
+    if (!verifyPassword(input.password, this.pepper, user.passwordHash)) {
+      return { ok: false, reason: "WRONG_PASSWORD" };
+    }
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    const tokens = await this.issueTokens({
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      roles: user.roles.map((r) => r.role.name),
+    });
+    return { ok: true, tokens };
+  }
+
   /** POST /auth/refresh — rotating; reuse of a consumed token revokes the family. */
   async refreshTokens(family: string, presented: string): Promise<TokenPair | null> {
     const rotated = await this.refresh.rotate(family, presented);
@@ -119,6 +207,13 @@ export class AuthService {
 
   async logout(family: string): Promise<void> {
     await this.refresh.revokeFamily(family);
+  }
+
+  /** Mint a fresh token pair after a user's roles change (e.g. SELLER_OWNER granted). */
+  async issueTokensForUserId(userId: string): Promise<TokenPair | null> {
+    const user = await this.loadAuthUser(userId);
+    if (!user) return null;
+    return this.issueTokens(user);
   }
 
   // ---- internals ----------------------------------------------------------

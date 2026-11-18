@@ -52,7 +52,8 @@ export class ShopsService {
           name: input.name,
           slug,
           description: input.description ?? null,
-          status: "PENDING",
+          status: "ACTIVE",
+          openedAt: new Date(),
         },
       });
       await tx.shopDomain.create({

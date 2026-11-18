@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+:root {
+  --brand: #0d7d72;
+  --brand-dark: #064e47;
+  --brand-tint: #e6f4f2;
+  --accent: #f0820e;
+  --accent-dark: #d16e00;
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --ink-3: #94a3b8;
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --line: #e2e8f0;
+  --ok: #10b981;
+  --warn: #f59e0b;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.studio-mesh {
+  background:
+    radial-gradient(900px 500px at 10% -10%, rgba(13, 125, 114, 0.14), transparent 60%),
+    radial-gradient(800px 480px at 95% 0%, rgba(240, 130, 14, 0.10), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.hero-sidebar {
+  background:
+    radial-gradient(700px 500px at 15% 15%, rgba(20, 184, 166, 0.25), transparent 60%),
+    radial-gradient(600px 500px at 85% 90%, rgba(245, 158, 11, 0.18), transparent 60%),
+    linear-gradient(160deg, #072227 0%, #0b3b36 52%, #0f172a 100%);
+}
+

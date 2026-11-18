@@ -70,22 +70,68 @@ export function createApiClient({ baseUrl, getAccessToken }: ApiClientOptions) {
     requestOtp: (phone: string) => post<{ resendIn: number }>("/auth/otp/request", { phone }),
     verifyOtp: (phone: string, otp: string, name?: string) =>
       post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/otp/verify", { phone, otp, name }),
+    register: (dto: { email: string; phone: string; password: string; name?: string }) =>
+      post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/register", dto),
+    loginEmail: (dto: { email: string; password: string }) =>
+      post<{ accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } }>("/auth/login", dto),
     me: () => request<{ id: string; phone: string; name: string; roles: Array<{ role: { name: string }; cityId: string | null; shopId: string | null }> }>("/me"),
 
-    // --- M04/M05 seller onboarding ---
-    registerSeller: (dto: { legalName: string; displayName: string; businessType: string; pan: string; gstin?: string }) =>
-      post<{ sellerId: string }>("/sellers/register", dto),
-    submitKyc: () => post<{ status: string }>("/sellers/me/submit-kyc"),
-    createShop: (dto: { sellerId: string; cityId: string; name: string; description?: string }) =>
+    // --- M04/M05 seller onboarding + Seller Studio ---
+    cities: () =>
+      request<Array<{ id: string; name: string; slug: string; stateName: string; stateCode: string }>>("/cities"),
+    sellerMe: () =>
+      request<{
+        user: { id: string; name: string; email: string | null; phone: string; roles: string[] } | null;
+        seller: {
+          id: string; legalName: string; displayName: string; businessType: string;
+          pan: string; gstin: string | null; status: string;
+          kycSubmittedAt: string | null; approvedAt: string | null; createdAt: string;
+        } | null;
+        shops: Array<{
+          id: string; name: string; slug: string; description: string | null; status: string;
+          cityId: string; cityName: string; citySlug: string; host: string;
+          listingCount: number; orderCount: number; revenuePaise: number;
+        }>;
+        cities: Array<{ id: string; name: string; slug: string; stateName: string; stateCode: string }>;
+        stats: { revenuePaise: number; activeListings: number; totalListings: number; pendingOrders: number; totalOrders: number };
+      }>("/sellers/me"),
+    registerSeller: (dto: { legalName: string; displayName: string; businessType: string; pan: string; gstin?: string; autoApproveDev?: boolean }) =>
+      post<{ sellerId: string; tokens?: { accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } } }>("/sellers/register", dto),
+    submitKyc: () =>
+      post<{ status: string; tokens?: { accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } } }>("/sellers/me/submit-kyc"),
+    devApproveSeller: () =>
+      post<{ sellerId: string; status: string; tokens?: { accessToken: string; refreshToken: string; family: string; user: { id: string; name: string; roles: string[] } } }>("/sellers/me/dev-approve"),
+    createShop: (dto: { sellerId?: string; cityId: string; name: string; description?: string }) =>
       post<{ shopId: string; slug: string; host: string }>("/shops", dto),
+    sellerListings: (shopId?: string) =>
+      request<Array<{
+        listingId: string; shopId: string; shopName: string; shopSlug: string;
+        productId: string; title: string; productSlug: string; gtin: string | null;
+        categoryId: string; categoryName: string; status: string; listedAt: string | null;
+        listingVariantId: string | null; variantId: string | null; sellerSku: string;
+        mrpPaise: number; pricePaise: number; stockOnHand: number; stockReserved: number;
+      }>>(`/sellers/me/listings${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ""}`),
+    updateSellerListing: (listingId: string, dto: { pricePaise?: number; mrpPaise?: number; stockOnHand?: number; status?: "ACTIVE" | "PAUSED" }) =>
+      patch<{ ok: boolean }>(`/sellers/me/listings/${listingId}`, dto),
+    sellerOrders: (shopId?: string) =>
+      request<Array<{
+        id: string; sellerOrderNo: string; orderId: string; orderNo: string;
+        shopId: string; shopName: string; status: string;
+        itemsTotalPaise: number; deliveryFeePaise: number; taxTotalPaise: number; sellerNetPaise: number;
+        createdAt: string; placedAt: string | null; acceptedAt: string | null; deliveredAt: string | null;
+        addressSnapshot: unknown;
+        items: Array<{ id: string; name: string; sku: string; quantity: number; unitPricePaise: number; lineTotalPaise: number }>;
+      }>>(`/sellers/me/orders${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ""}`),
+    sellerOrderAction: (sellerOrderId: string, action: "accept" | "reject" | "preparing" | "ready" | "dispatch", reason?: string) =>
+      post<{ status: string; parentStatus: string }>(`/seller-orders/${sellerOrderId}/${action}`, reason ? { reason } : {}),
 
     // --- M07/M08 seller catalog + listing ---
     createProduct: (dto: { categoryId: string; name: string; description?: string; gtin?: string; attributes?: Record<string, unknown>; variant?: { sku?: string; attributes?: Record<string, unknown> } }) =>
       post<{ productId: string; matched: string; variantId: string }>("/catalog/products", dto),
     createListingDraft: (shopId: string, dto: { productId: string; titleOverride?: string; variants: Array<{ variantId: string; sellerSku: string; mrpPaise: number; pricePaise: number; taxRateBp?: number }> }) =>
       post<{ listingId: string }>(`/shops/${shopId}/listings/draft`, dto),
-    publishListing: (listingId: string, imageCount = 1) =>
-      post<{ status: string }>(`/listings/${listingId}/publish`, { imageCount }),
+    publishListing: (listingId: string, imageCount = 1, initialStock = 25) =>
+      post<{ status: string }>(`/listings/${listingId}/publish`, { imageCount, initialStock }),
 
     // --- M11 search ---
     search: (q: string, params: Record<string, string> = {}) => {

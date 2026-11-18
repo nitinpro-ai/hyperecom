@@ -9,6 +9,7 @@ const inr = (p: number) => "₹" + Math.round(p / 100).toLocaleString("en-IN");
 function Results() {
   const params = useSearchParams();
   const q = params.get("q") ?? "";
+  const shopId = params.get("shopId") ?? "";
   const [hits, setHits] = useState<Hit[]>([]);
   const [busy, setBusy] = useState(true);
 
@@ -16,8 +17,12 @@ function Results() {
     const api = clientApi();
     const cityId = getCityId();
     setBusy(true);
-    api.search(q, cityId ? { cityId } : {}).then((r) => setHits(r)).catch(() => setHits([])).finally(() => setBusy(false));
-  }, [q]);
+    const extra: Record<string, string> = {};
+    if (cityId) extra.cityId = cityId;
+    if (shopId) extra.shopId = shopId;
+    // shop browse: empty q still lists that shop's items; search uses "" = all
+    api.search(q, extra).then((r) => setHits(r)).catch(() => setHits([])).finally(() => setBusy(false));
+  }, [q, shopId]);
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4">

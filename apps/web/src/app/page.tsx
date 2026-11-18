@@ -27,11 +27,19 @@ const DEMO_PRODUCTS = [
   { id: "demo", name: "Cotton Kurta — Festive", price: 59900, mrp: 99900, stock: 3 },
 ];
 
+const SELLER_PORTAL_URL = process.env.NEXT_PUBLIC_SELLER_URL ?? "http://192.168.2.224:30281";
+
 export default async function HomePage() {
   const hits = await safe(() => api.search(""), []);
   const products = hits.length > 0
     ? hits.slice(0, 12).map((h) => ({ id: h.productId, name: h.name, price: h.pricePaise, mrp: h.mrpPaise, stock: h.inStock ? 10 : 0 }))
     : DEMO_PRODUCTS;
+  // Data-driven "popular shops": first distinct shopIds from live listings → each
+  // card links to that shop's offers via /search?shopId=. No hardcoded slugs.
+  const liveShopIds = Array.from(new Set(hits.map((h) => h.shopId))).slice(0, 4);
+  const shopCards = liveShopIds.length > 0
+    ? liveShopIds.map((id, i) => ({ id, name: shops[i]?.name ?? `Local shop ${i + 1}`, cat: shops[i]?.cat ?? "Store", rating: shops[i]?.rating ?? 4.3, reviews: shops[i]?.reviews ?? 24, km: shops[i]?.km ?? 1.5, href: `/search?shopId=${id}` }))
+    : shops.map((s) => ({ ...s, id: s.name, href: "/search" }));
   return (
     <div className="min-h-screen">
       <TopBar city={CITY.name} state={CITY.state} cartCount={0} />
@@ -39,9 +47,9 @@ export default async function HomePage() {
       {/* category rail */}
       <nav className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 py-2 sm:px-4 [scrollbar-width:none]">
-          <span className="whitespace-nowrap rounded-full bg-brand-tint px-3 py-1.5 text-sm font-semibold text-brand">All</span>
+          <a href="/search" className="whitespace-nowrap rounded-full bg-brand-tint px-3 py-1.5 text-sm font-semibold text-brand hover:bg-brand/15">All</a>
           {categories.map((c) => (
-            <span key={c.key} className="cursor-pointer whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-ink-2 hover:bg-gray-100">{c.name}</span>
+            <a key={c.key} href={`/search?q=${encodeURIComponent(c.name)}`} className="cursor-pointer whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-ink-2 hover:bg-gray-100">{c.name}</a>
           ))}
         </div>
       </nav>
@@ -55,8 +63,8 @@ export default async function HomePage() {
             Real local shops near you — compare prices across stores and get it delivered today.
           </p>
           <div className="mt-4 flex gap-2">
-            <button className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent-dark">Start shopping</button>
-            <button className="rounded-full bg-white/15 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur hover:bg-white/25">Sell on ApnaCity</button>
+            <a href="/search" className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent-dark">Start shopping</a>
+            <a href={SELLER_PORTAL_URL} className="rounded-full bg-white/15 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur hover:bg-white/25">Sell on ApnaCity</a>
           </div>
         </section>
 
@@ -78,10 +86,10 @@ export default async function HomePage() {
         </div>
 
         {/* featured shops */}
-        <Section title={`Popular shops in ${CITY.name}`} action={<a href="#" className="text-sm font-semibold text-brand">See all</a>}>
+        <Section title={`Popular shops in ${CITY.name}`} action={<a href="/search" className="text-sm font-semibold text-brand">See all</a>}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {shops.map((s) => (
-              <a key={s.name} href="/shop/bagga-cloth" className="group rounded-[var(--r-md)] border border-line bg-surface p-3 transition hover:shadow-[var(--shadow-hover)]">
+            {shopCards.map((s) => (
+              <a key={s.id} href={s.href} className="group rounded-[var(--r-md)] border border-line bg-surface p-3 transition hover:shadow-[var(--shadow-hover)]">
                 <div className="flex items-center gap-3">
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-base font-bold text-brand">{s.name[0]}</span>
                   <div className="min-w-0">
@@ -99,7 +107,7 @@ export default async function HomePage() {
         </Section>
 
         {/* product grid */}
-        <Section title="Trending near you" action={<a href="#" className="text-sm font-semibold text-brand">See all</a>}>
+        <Section title="Trending near you" action={<a href="/search" className="text-sm font-semibold text-brand">See all</a>}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {products.map((p, i) => (
               <a key={i} href={`/product/${p.id}`} className="group flex flex-col overflow-hidden rounded-[var(--r-md)] border border-line bg-surface transition hover:shadow-[var(--shadow-hover)]">

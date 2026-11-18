@@ -22,6 +22,13 @@ export const envSchema = z.object({
   API_BASE_URL: z.string().url().default("http://localhost:4000"),
   WEB_BASE_URL: z.string().url().default("http://localhost:3000"),
   APP_DOMAIN: z.string().default("apnacity.com"),
+  // Browser origins allowed to call the API (CORS allowlist, comma-separated).
+  // Dev default covers the LAN NodePorts for web/seller/admin + localhost dev.
+  CORS_ORIGINS: z
+    .string()
+    .default(
+      "http://192.168.2.224:30280,http://192.168.2.224:30281,http://192.168.2.224:30282,http://localhost:3000,http://localhost:3001,http://localhost:3002",
+    ),
   TENANT_RESOLVE_HMAC_SECRET: z.string().min(16),
 
   // database

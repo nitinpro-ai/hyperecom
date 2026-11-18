@@ -359,12 +359,63 @@ Accept: rollup correctness; tenant scoping; no PII in dashboards.
 Accept: one review/item; verified-purchase enforced; aggregate recompute exact.
 
 > **Next action now:** **ALL 32 MODULES BUILT + DEPLOYED to the cluster (2026-11-17).**
-> api/web/seller/admin rolled out from the 32-module image; all pods 1/1; API serves every
-> module (/v1/health, /v1/categories, /v1/auth/me, offers, storefront resolve); web renders
-> real multi-shop PDP. Gate: typecheck 18/18, tests 241/43 files, build 11/11. Jenkins CI green.
-> **Remaining = integration/ops, not modules:** (1) wire cross-module event orchestration
-> (order READY→delivery job, delivered→OMS close→settlement, settlement.paid→webhook);
-> (2) schedule sweeps as CronJobs (webhook retries, order/SLA timers, settlement batch,
-> analytics rollups, offline-rider); (3) external accounts (Cashfree, DLT SMS, Maps, MinIO);
-> (4) merge feat/step4-foundation-identity → main (deploy stage is main-gated); (5) CA sign-off
-> on GST/TCS before money moves.
+---
+
+## Usability pass — front-page interactivity + email registration (2026-11-17)
+
+**Reported:** customer front page had inert elements (location "Bijnor" dead, category
+chips were `<span>`s, hero buttons no handler, "See all" → `#`, shop cards hardcoded to
+`/shop/bagga-cloth`); user also wanted email-based registration (collecting mobile too).
+
+**Fixed (deployed, verified live):**
+- `apps/web/src/components/city-picker.tsx` (NEW, client) — working city dropdown; persists
+  `cityId` via `setCityId`. Replaces the dead TopBar location button.
+- `apps/web/src/app/page.tsx` — category chips → `<a>`/`/search?q=<cat>`; "All" → `/search`;
+  hero → `/search` + seller-portal; "See all" → `/search`; shop cards **data-driven** from live
+  listings → `/search?shopId=<id>` (no hardcoded slug).
+- `apps/api/src/search/search.service.ts` — empty query now **browse-lists** active listings by
+  filters (city/shop/price) instead of returning `[]`. Powers the "All" chip + shop browse.
+- **Email+mobile registration** — `auth.service.registerEmail`/`loginEmail` (scrypt password,
+  CUSTOMER role, `user.registered.v1`); `POST /auth/register` + `POST /auth/login`;
+  api-client `register`/`loginEmail`; `apps/web/src/app/register/page.tsx` (NEW) + email tab on
+  `/login`. Mobile number collected on the form (users.phone required+unique).
+- Tests: `apps/api/src/auth/auth.email.spec.ts` (NEW, 3 integration tests) — register, login,
+  duplicate email/phone, wrong password. Full suite **244 tests green**; boot test green; web build green.
+
+**Verified live on cluster:** register→JWT(CUSTOMER), login 200, dup email 409, wrong-pw 401,
+`GET /search?q=` returns products, web 200, api health 200. QA agent pass recorded below.
+
+### QA fix + demo accounts (2026-11-17/18)
+
+**QA agent found 1 real defect** (25/26 pass): home shop cards + product grid were
+rendering the demo fallback (`/product/demo`, no `shopId` links) because the web pod's
+server-side `lib/api.ts` read `API_BASE_URL` (unset on the pod) → defaulted to
+`localhost:4000` → fetch failed → `safe()` returned `[]`.
+- **Fix:** `apps/web/src/lib/api.ts` base URL now falls back `API_BASE_URL →
+  NEXT_PUBLIC_API_BASE_URL (baked at build) → localhost`. Rebuilt+redeployed web.
+- **Verified live:** home now shows real products + 4× `/search?shopId=<uuid>` data-driven
+  shop cards; zero `/product/demo`.
+
+**Demo test accounts** (seeded idempotently via `infrastructure/seed-demo-accounts.ts`,
+password hash uses the live `OTP_HASH_PEPPER`):
+- `demo_customer@apnacity.dev` / `demo12345` — CUSTOMER. Web Email-tab login (login 200).
+- `demo_seller@apnacity.dev` / `demo12345` — APPROVED seller + ACTIVE shop `demo-store` in
+  Bijnor. Seller-portal Email-tab login (login 200). **Seller portal gained an email-login
+  tab** (`apps/seller-portal/src/app/login/page.tsx`) — previously OTP-only.
+- Web login: http://192.168.2.224:30280/login · Seller: http://192.168.2.224:30281/login
+
+Images this round: web `42cc79b5…` (new), seller `70cfc27b…` (new), api/admin unchanged.
+
+### CORS fix (2026-11-18) — "Failed to fetch" on browser logins
+
+**Symptom:** seller-portal email login showed "Failed to fetch" (and all browser-side
+client calls from web :30280 / seller :30281 to API :30400 would fail the same way).
+**Root cause:** the API never called `app.enableCors()` — cross-origin browser requests
+were blocked. Server-side curl (my earlier checks) bypasses CORS, so it was invisible until
+a real browser POST.
+**Fix:** `apps/api/src/main.ts` now enables CORS from an explicit allowlist (not `*`, since
+requests carry bearer tokens), driven by new env `CORS_ORIGINS` (packages/config). Dev default
++ env-dev example list web/seller/admin NodePorts. Rebuilt+redeployed api (digest d43bb527…).
+**Verified:** OPTIONS preflight 204 with Access-Control-Allow-* headers; login POST 200 with
+Access-Control-Allow-Origin echoed for both :30280 and :30281. Also fixed stale
+`WEB_BASE_URL=:30080` → `:30280` in env-dev example.
